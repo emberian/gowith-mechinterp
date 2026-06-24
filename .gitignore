@@ -3,11 +3,11 @@ __pycache__/
 *.pyc
 *.egg-info/
 uv.lock.local
-# large run artifacts (kept out of git; archived separately)
-data/runs/
-report/figs/*.png
+# scratch run dirs (mock/smoke). The CANONICAL run lives in data/runs/white|black
+# and is force-tracked (git add -f) — it is the GPU output, NOT regenerable for free.
+data/runs/white_smoke/
+data/runs/MOCK
 report/report.pdf
-*.npz
 .DS_Store
 # secrets / ephemeral infra state never enter the repo
 *.pem

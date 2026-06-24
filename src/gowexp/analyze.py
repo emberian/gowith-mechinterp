@@ -149,7 +149,8 @@ def study1(df: pd.DataFrame) -> dict:
 
 def _metric_name(task: str) -> str:
     return {"nonmonotonic": "correct_final", "epistemic": "calibration (1−confab)",
-            "observable": "claim accuracy"}[task]
+            "observable": "claim accuracy", "agency": "role accuracy",
+            "correlative": "rubric score (judge)"}.get(task, task)
 
 
 def _verdicts(c: dict) -> dict:

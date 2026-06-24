@@ -68,18 +68,27 @@ def main() -> None:
     lm = load_lm(wb["model_id"], dtype=wb["dtype"], revision=wb["model_revision"])
     sae = load_sae(wb["sae_release"], resolve_sae_id(cfg, layer), device=lm.device)
     fidx = torch.tensor(feat_ids, device=lm.device)
+    tok = lambda s: lm.tokenizer.encode(s, add_special_tokens=False)  # noqa: E731 (B/E need it)
 
     # per feature: a heap-ish list of (activation, condition, window); per (feature,condition) means
     snippets: dict[int, list[dict]] = {f: [] for f in feat_ids}
     cond_sum: dict[int, dict[str, list[float]]] = {f: {c: [] for c in SAMPLE_CONDS} for f in feat_ids}
 
-    qbatch = int(os.environ.get("GOWEXP_BATCH", "16"))
+    # KV-budget batch sizing (D/E have ~2.5k-token inputs; fixed 16 OOMs at 1024 out).
+    BUDGET = int(os.environ.get("GOWEXP_TOKBUDGET", "16000"))
+    MAXB = int(os.environ.get("GOWEXP_BATCH", "16"))
+    max_new = int(wb["max_new_tokens"])
     for cond in SAMPLE_CONDS:
-        for s0 in tqdm(range(0, len(sample), qbatch), desc=f"qual:{cond}"):
-            batch = sample[s0:s0 + qbatch]
-            res = generate_batch(
-                lm, [(C.render(it, cond).system, C.render(it, cond).user) for it in batch],
-                [layer], wb["max_new_tokens"])
+        rendered = [(it, C.render(it, cond, tok)) for it in sample]
+        # size batch by this condition's input length + worst-case output
+        eff = max((lm.tok_len(cp.system) + lm.tok_len(cp.user) for _it, cp in rendered),
+                  default=100) + max_new
+        qbatch = max(1, min(MAXB, BUDGET // max(1, eff)))
+        for s0 in tqdm(range(0, len(rendered), qbatch), desc=f"qual:{cond}"):
+            chunk = rendered[s0:s0 + qbatch]
+            batch = [it for it, _cp in chunk]
+            res = generate_batch(lm, [(cp.system, cp.user) for _it, cp in chunk],
+                                 [layer], max_new)
             for it, r in zip(batch, res):
                 rr = r["resids"].get(layer)
                 if rr is None or rr.shape[0] == 0:
