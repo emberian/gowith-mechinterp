@@ -146,6 +146,44 @@ def render_E(item: Item, tok: Tok) -> ChatPrompt:
     return ChatPrompt(system=sys, user=user)
 
 
+# --- alternative-stance conditions (G–J): can other prompting ideas match Gowith? ---
+# Each induces "hold the relations / don't snap to one cause" by a DIFFERENT means than
+# Gowith, all plain-or-alternative-formalism, all ending in the same ANSWER protocol.
+
+def render_G(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Consider-the-opposite (classic debiasing against premature closure)."""
+    instr = ("Before you answer: state the most obvious conclusion, then argue carefully for why "
+             "it might be wrong or incomplete. Only after that, give your considered answer. "
+             + ANSWER_PROTOCOL)
+    return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
+
+
+def render_H(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Causal-DAG notation — a different relational formalism than Gowith."""
+    instr = ("First write the causal structure as a graph: list each influence as an arrow "
+             "'X -> Y' (X influences Y). Use 'X <-> Y' for mutual influence or feedback loops, and "
+             "say 'X ? Y' where direction is unknown. Then read your conclusion off the graph. "
+             + ANSWER_PROTOCOL)
+    return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
+
+
+def render_I(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Systems-thinking persona — stance via role, plain English."""
+    sys = ("You are a careful systems scientist. You reason about stocks, flows, feedback loops, "
+           "and mutual influence before drawing conclusions, and you resist single-cause stories.")
+    instr = ("Identify the participants and how they influence each other (including any loops) "
+             "before concluding. " + ANSWER_PROTOCOL)
+    return ChatPrompt(system=sys, user=f"{instr}\n\n{_problem_block(item)}")
+
+
+def render_J(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Calibration / epistemic-humility prompt."""
+    instr = ("As you reason, separate what the evidence actually supports from what you'd be "
+             "guessing. Flag anything you cannot determine, and assert only what is warranted. "
+             + ANSWER_PROTOCOL)
+    return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
+
+
 REGISTER_RENDERERS: dict[str, Callable[..., ChatPrompt]] = {
     "A": render_A,
     "B": render_B,
@@ -153,6 +191,10 @@ REGISTER_RENDERERS: dict[str, Callable[..., ChatPrompt]] = {
     "D": render_D,
     "E": render_E,
     "F": render_F,
+    "G": render_G,
+    "H": render_H,
+    "I": render_I,
+    "J": render_J,
 }
 
 # Conditions whose renderer needs the tokenizer (for length-matching).

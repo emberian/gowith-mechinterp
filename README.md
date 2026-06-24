@@ -3,27 +3,37 @@
 A mechanistic-interpretability experiment born from a Discord "Bridge" channel
 (2026-06-17) where a roomful of humans and models converged on a real, runnable test.
 
-## Headline result (Gemma-3-12B-it, real run)
+## Headline result (Gemma-3-12B-it, real run — after independent red-team)
 
-**Gowith is regime-dependent: a measurable *tax* on crisp reasoning, and (suggestively) a
-*tool* on goopy relational reasoning.** Reasoning-in-Gowith (condition D) vs plain
+**The Gowith prompt-package is a real but modest *tax* on templated crisp tasks, with no
+robust evidence of benefit anywhere.** The one positive trend (correlative) is
+non-significant, matched by a scrambled control, and possibly an artifact of rubric-keyword
+prompting. We say "package" deliberately: condition D is a 2400-token skill + instructions,
+so this is *not* an isolated test of Gowith *grammar*. Reasoning-in-Gowith (D) vs plain
 step-by-step English (A), by task:
 
-| task | what it tests | D − A (95% CI) |
-|---|---|---|
-| nonmonotonic | belief revision | **−0.33** [−0.41, −0.24] |
-| agency | responsibility attribution | **−0.12** [−0.17, −0.08] |
-| observable | measurable-vs-metaphysical sort | −0.03 [−0.06, −0.01] |
-| epistemic-limit | confabulation refusal | −0.07 [−0.17, +0.03] (ns) |
-| **correlative** | **cause-vs-correlation, feedback loops** | **+0.12** [−0.05, +0.30] (suggestive, n=40) |
+| task | what it tests | D − A (95% CI) | read |
+|---|---|---|---|
+| nonmonotonic | belief revision | **−0.28** [−0.36, −0.20] | real degradation (parser-robust) |
+| agency | responsibility attribution | **−0.12** [−0.17, −0.08] | but task is ceilinged (A=1.0) |
+| observable | measurable-vs-metaphysical | −0.03 [−0.06, −0.01] | small |
+| epistemic-limit | confabulation refusal | −0.07 [−0.17, +0.03] | n.s. |
+| correlative | cause-vs-correlation | +0.12 [−0.05, +0.30] | **n.s.**, n=40, judge-scored |
 
-Controls separate the cause: padded-plain (B) ≈ A → **not the tokens**; pseudo-Gowith (E) ≈ A
-on crisp tasks → the degradation is **Gowith specifically**, but E ≈ D on correlative → the
-*help* is the **relational stance, not the notation**. Output-budget dose-response (O0→O3) is
-flat-to-negative → extra reasoning tokens don't buy accuracy here. Mechanistically, the
-features Gowith raises on goopy vs crisp tasks overlap only **Jaccard 0.33** — different
-features per regime, not one uniform "formal mode." Full write-up: `report/report.pdf`,
-live site in `docs/`, channel reply in `report/anma_reply.md`.
+What the controls do and don't show: padded-plain (B) ≈ A → this *filler recipe* doesn't
+help (does **not** refute token-budget in general); pseudo-Gowith (E) ≈ A on crisp; **E ≈ D on
+correlative** → the correlative trend is **not Gowith-specific**. Output-budget: **flat on the
+near-ceiling crisp tasks but strongly positive on correlative** (O0→O2: 0.05→0.16→0.55) — extra
+reasoning tokens *do* help hard relational reasoning. Mechanistically the moved SAE features
+are mostly syntactic/formatting (a register shift), and the D-vs-A and E-vs-A feature sets
+overlap **Jaccard ≈0.40** — consistent with novelty/register, not Gowith semantics.
+
+**Honest one-liner:** *this run shows a Gowith-prompt-package degradation on several
+easy/templated tasks and a non-significant correlative lift matched by pseudo-Gowith. It does
+not isolate Gowith grammar, does not refute output-token budget, and does not establish
+mechanistic causal specificity.* See `report/methodology_review.md` (independent GPT-5.5 review)
+for the full critique that produced these caveats. Full write-up: `report/report.pdf`, live
+site + feature explorer in `docs/`.
 
 ---
 
@@ -61,10 +71,15 @@ output tokens directly tests the "tokens are serial-compute room" claim. Plus a
 matched-output-length analysis of Study 1 (does Gowith beat plain *at equal output
 length*?).
 
-**Tasks** (all binary-scored — the channel's hard rule: *no vibe-scoring*):
-1. **nonmonotonic** belief revision (Tweety→penguin→broken jetpack),
-2. **epistemic-limit / confabulation** (questions with no knowable answer),
-3. **observable-vs-metaphysical** classification.
+**Tasks.** Five families across two arms. The first three are **binary-scored** (the
+channel's "no vibe-scoring" rule); **agency** is binary too; **correlative** has no binary
+gold (it's Gowith's actual fuzzy domain) so it is scored by a **register-blind LLM-judge
+panel** — the judge sees only the plain-English conclusion, never the register.
+1. **nonmonotonic** belief revision (Tweety→penguin→broken jetpack) — *degradation arm*
+2. **epistemic-limit / confabulation** (questions with no knowable answer) — *degradation arm*
+3. **observable-vs-metaphysical** classification — *degradation arm*
+4. **agency / responsibility** attribution (`-lead`/`-pressed`/`-witness`) — *in-domain, binary*
+5. **correlative** causal/relational reasoning (feedback loops, cause-vs-correlation) — *in-domain, judge-scored*
 
 **Mechanistic (the WHY).** White-box on **Gemma-3-12B-it** + **Gemma Scope 2** pretrained
 SAEs. For each condition we capture the residual stream, encode through the SAE, and ask
