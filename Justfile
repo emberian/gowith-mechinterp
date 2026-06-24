@@ -21,6 +21,10 @@ render:
 smoke:
     python -m gowexp.selftest
 
+# Synthetic run (no GPU) to exercise score -> analyze -> report -> site end to end.
+mock:
+    python -m gowexp.items && python -m gowexp.mock && python -m gowexp.score && python -m gowexp.analyze
+
 # --- GPU box: the white-box run --------------------------------------------
 
 # Generations + SAE feature capture across all conditions (run ON the box).
