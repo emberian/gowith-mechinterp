@@ -104,8 +104,11 @@ def main() -> None:
 
     # Batched generation grouped by condition (uniform lengths) with a KV-memory
     # budget: batch size ~ BUDGET / max_input_len, capped at MAXB.
-    MAXB = int(os.environ.get("GOWEXP_BATCH", "24"))
-    BUDGET = int(os.environ.get("GOWEXP_TOKBUDGET", "20000"))
+    MAXB = int(os.environ.get("GOWEXP_BATCH", "16"))
+    # KV token-slot budget (batch × TOTAL seq len). Must count generated tokens too,
+    # else short-input/long-output conditions (A now reasons!) OOM the KV cache.
+    BUDGET = int(os.environ.get("GOWEXP_TOKBUDGET", "16000"))
+    max_new = int(wb["max_new_tokens"])
     todo = [(i, p) for i, p in enumerate(prompts) if (p.item_id, p.condition) not in done]
     groups: dict[str, list] = defaultdict(list)
     for i, p in todo:
@@ -118,7 +121,8 @@ def main() -> None:
         k = 0
         while k < len(lst):
             first_len = max(1, lst[k][1].n_input_tokens or 100)
-            bsize = max(1, min(MAXB, BUDGET // first_len))
+            effective = first_len + max_new  # input + worst-case generated tokens
+            bsize = max(1, min(MAXB, BUDGET // effective))
             batch = lst[k:k + bsize]
             k += bsize
             res = generate_batch(lm, [(p.system, p.user) for _, p in batch], layers,

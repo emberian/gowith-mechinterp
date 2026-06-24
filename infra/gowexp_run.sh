@@ -4,6 +4,8 @@ set -uo pipefail
 cd ~/gowexp
 source .venv/bin/activate
 export PYTHONPATH=src
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # reduce fragmentation
+export GOWEXP_BATCH=16   # cap batch (qualitative + steer read this; run_white shrinks further by seq len)
 log(){ echo "[$(date -u +%H:%M:%S)] $*"; }
 STAGE="${1:-full}"
 
