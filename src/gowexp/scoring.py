@@ -63,24 +63,37 @@ def declines(text: str) -> bool:
 
 
 # yes/no parsing for the nonmonotonic task -----------------------------------
+# Style-robust: a trailing hedge clause ("..., but it is not certain") must NOT flip
+# the main polarity to "no", and genuine non-commitment ("it is not clear whether")
+# is 'unknown', not 'no'. This matters because the Gowith register induces hedged
+# answers, and the naive "any 'not' -> no" rule penalized style, not reasoning.
 
-_NEG = re.compile(r"\b(no|cannot|can'?t|not|unable|false|does\s*n'?t|doesn'?t|won'?t|"
-                  r"will\s+not|never|incapable)\b", re.I)
-_AFF = re.compile(r"\b(yes|can|could|able|true|does|do|will|capable|flies|fly)\b", re.I)
+_ABSTAIN = re.compile(
+    r"\b(not clear|unclear|cannot be determined|can'?t be determined|"
+    r"not (?:possible|able) to (?:determine|say|tell|know)|unknown|indeterminate|"
+    r"depends on|no way to (?:know|tell)|insufficient|uncertain whether|not enough)\b", re.I)
+_NEG = re.compile(r"\b(cannot|can'?t|unable to|not able to|does not|doesn'?t|will not|"
+                  r"won'?t|incapable|no longer able)\b", re.I)
+_AFF = re.compile(r"\b(can|able to|capable|is able|could|likely|probabl|flies|fly|"
+                  r"will be able|true|yes)\b", re.I)
+_HEDGE_TAIL = re.compile(r"[,;]?\s+(but|though|although|however|yet)\b.*$", re.I)
 
 
 def parse_yes_no(answer: str) -> str | None:
-    """Classify a short answer as 'yes' / 'no' / None.
+    """Classify a short answer as 'yes' / 'no' / 'unknown' / None, robust to hedging.
 
-    Order: a leading yes/no token decides; otherwise any explicit negation reads as
-    'no' (so 'it cannot fly' → no, beating the bare 'fly'); otherwise affirmative."""
-    a = answer.strip().lower()
-    if re.match(r"^\s*no\b", a):
+    'unknown' (genuine non-commitment) is distinct from 'no' and counts as incorrect
+    on a determinate item without being miscoded as the opposite polarity."""
+    a = " " + answer.strip().lower()
+    core = _HEDGE_TAIL.sub("", a)  # drop subordinate hedge clause before judging polarity
+    if _ABSTAIN.search(core):
+        return "unknown"
+    if re.match(r"^\s*(no\b|nope|negative)", core):
         return "no"
-    if re.match(r"^\s*yes\b", a):
+    if re.match(r"^\s*(yes\b|yep|affirmative)", core):
         return "yes"
-    if _NEG.search(a):
+    if _NEG.search(core):
         return "no"
-    if _AFF.search(a):
+    if _AFF.search(core):
         return "yes"
     return None

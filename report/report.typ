@@ -717,25 +717,30 @@ Gowith's epistemic effect rather than merely correlating with it.
   #set par(first-line-indent: 0pt)
   #eyebrow("Headline", color: accent) \
   #v(3pt)
-  Stacking the converging lines of evidence: *token-budget alone does not explain the
-  effect* (#cond-chip("B") falls short of #cond-chip("D"), and Study 2's dose curve, while
-  real, does not close the gap at matched output); *Gowith beats its own token-matched
-  scramble* behaviorally
-  (#frac-chip(s1.synthesis.gowith_beats_matched_tokens.tasks_true, s1.synthesis.gowith_beats_matched_tokens.tasks_total)
-  tasks) and *mechanistically* (low #cond-chip("E")-overlap, Jaccard
-  #numf(mech.E_validation.overlap_jaccard, digits: 2)); and steering with the *genuine*
-  Gowith features — but not the placebo — *causally* lowers confabulation. The most
-  demanding bar, *grammar beyond an explicit checklist*, is met only on
-  #frac-chip(s1.synthesis.grammar_beyond_checklist.tasks_true, s1.synthesis.grammar_beyond_checklist.tasks_total)
-  tasks, so the honest verdict is: *the register's grammar appears to do real,
-  causally-specific work that mere tokens or novelty cannot reproduce, but its advantage
-  over a plainly-stated checklist is task-dependent and not yet established.*
+  The honest verdict, after an independent GPT-5.5 red-team (see Limitations): *the Gowith
+  prompt-package is a real but modest tax on templated crisp tasks
+  (#cond-chip("D") below #cond-chip("A") on
+  #frac-chip(4, 5) tasks; nonmonotonic −0.28, agency −0.12), and there is no robust evidence
+  of benefit anywhere.* The single positive trend — correlative #cond-chip("D") over
+  #cond-chip("A") — is *not significant* (95% CI crosses zero, n=40), is *matched by the
+  scramble* (#cond-chip("D")≈#cond-chip("E")), and may be an artifact of rubric-keyword
+  prompting. The controls cut against the strong reading: token-matched plain #cond-chip("B")
+  ≈ #cond-chip("A") (this filler recipe doesn't help, but that does *not* refute token-budget
+  in general — Study 2 shows output tokens help the hard goopy task a lot); pseudo-Gowith
+  #cond-chip("E") ≈ #cond-chip("A") on crisp. Mechanistically the moved features are
+  predominantly syntactic/formatting, and #cond-chip("D")-vs-#cond-chip("A") and
+  #cond-chip("E")-vs-#cond-chip("A") feature sets *overlap* (Jaccard
+  #numf(mech.E_validation.overlap_jaccard, digits: 2)) — consistent with a register/novelty
+  shift, not Gowith-specific semantics. Crucially, this design *does not isolate Gowith
+  grammar*: #cond-chip("D") is a 2400-token skill-plus-instructions package compared against
+  bare plain English.
 ]
 
-This is the “whether before why, no cathedrals” result the channel wanted: a *specific*
-positive claim (causal, feature-level, controlled against a scramble) wrapped around an
-*honest* negative space (the checklist comparison, the matched-output overlap). It neither
-mystifies Gowith nor flattens it to “just more tokens.”
+This is the “whether before why, no cathedrals” result the channel wanted — it just landed
+*deflationary*. Gowith is neither mystified nor vindicated: as deployed here it is a
+prompt-package that costs crisp reasoning and buys no measurable, controlled, Gowith-specific
+benefit. The one place tokens clearly help is the hard relational task (Study 2), which
+supports the *token-budget* intuition more than the *grammar* one.
 
 // ═════════════════════════════════════════════════════════════════════════════
 = Limitations
