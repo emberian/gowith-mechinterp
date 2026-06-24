@@ -58,14 +58,15 @@ def main() -> None:
     e_feats = lsum["top_E_vs_A"][: st["top_k_features"]]
 
     allit = [Item.from_dict(d) for d in read_jsonl(_REPO / "data" / "items.jsonl")]
-    # steer where the behavioral effect is sharpest: confabulation + belief revision.
-    # Cap to a balanced subset (steering is the expensive arm).
+    # steer on the binary tasks where the effect is sharpest (skip judge-scored
+    # correlative — no Bedrock on the box). Balanced subset; steering is expensive.
+    steer_tasks = ["nonmonotonic", "epistemic", "agency"]
     cap = st.get("max_items")
-    nm = [it for it in allit if it.task == "nonmonotonic"]
-    ep = [it for it in allit if it.task == "epistemic"]
+    pools = {t: [it for it in allit if it.task == t] for t in steer_tasks}
     if cap:
-        nm, ep = nm[: cap // 2], ep[: cap // 2]
-    items = nm + ep
+        per = max(1, cap // len(steer_tasks))
+        pools = {t: v[:per] for t, v in pools.items()}
+    items = [it for t in steer_tasks for it in pools[t]]
 
     lm = load_lm(wb["model_id"], dtype=wb["dtype"], revision=wb["model_revision"])
     sae = load_sae(wb["sae_release"], resolve_sae_id(cfg, layer), device=lm.device)
