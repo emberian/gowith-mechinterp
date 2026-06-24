@@ -188,6 +188,8 @@ budget, weird register, an implicit checklist, or vibes?</p>
   <div class="card"><b>Causal steering in the PLAIN condition</b><canvas id="c_steer" height="180"></canvas></div>
 </div>
 <h3>What the Gowith-up features actually fire on</h3>
+<p><a href="explore.html" style="display:inline-block;padding:8px 14px;background:#1f6feb;color:#fff;border-radius:8px;font-weight:600">→ Feature explorer</a>
+&nbsp;browse every Gowith-moved feature, each linked to its live Neuronpedia dashboard (label, top-activating examples, steering) — bring your own question.</p>
 {qual}
 
 <h2>Cross-family replication (Bedrock)</h2>
