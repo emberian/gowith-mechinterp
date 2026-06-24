@@ -3,6 +3,30 @@
 A mechanistic-interpretability experiment born from a Discord "Bridge" channel
 (2026-06-17) where a roomful of humans and models converged on a real, runnable test.
 
+## Headline result (Gemma-3-12B-it, real run)
+
+**Gowith is regime-dependent: a measurable *tax* on crisp reasoning, and (suggestively) a
+*tool* on goopy relational reasoning.** Reasoning-in-Gowith (condition D) vs plain
+step-by-step English (A), by task:
+
+| task | what it tests | D − A (95% CI) |
+|---|---|---|
+| nonmonotonic | belief revision | **−0.33** [−0.41, −0.24] |
+| agency | responsibility attribution | **−0.12** [−0.17, −0.08] |
+| observable | measurable-vs-metaphysical sort | −0.03 [−0.06, −0.01] |
+| epistemic-limit | confabulation refusal | −0.07 [−0.17, +0.03] (ns) |
+| **correlative** | **cause-vs-correlation, feedback loops** | **+0.12** [−0.05, +0.30] (suggestive, n=40) |
+
+Controls separate the cause: padded-plain (B) ≈ A → **not the tokens**; pseudo-Gowith (E) ≈ A
+on crisp tasks → the degradation is **Gowith specifically**, but E ≈ D on correlative → the
+*help* is the **relational stance, not the notation**. Output-budget dose-response (O0→O3) is
+flat-to-negative → extra reasoning tokens don't buy accuracy here. Mechanistically, the
+features Gowith raises on goopy vs crisp tasks overlap only **Jaccard 0.33** — different
+features per regime, not one uniform "formal mode." Full write-up: `report/report.pdf`,
+live site in `docs/`, channel reply in `report/anma_reply.md`.
+
+---
+
 **The question.** When a relational-process register — **Gowith** (Andy Ayrey's CC0
 conlang) — or simply **more reasoning tokens** appears to improve a model's *epistemic
 self-monitoring* (tracking uncertainty, refusing to confabulate, revising beliefs
