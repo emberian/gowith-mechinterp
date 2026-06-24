@@ -21,7 +21,7 @@ import torch
 from tqdm import tqdm
 
 from . import conditions as C
-from .model import build_prompt_ids, generate, load_lm, resid_at_positions
+from .model import generate_batch, load_lm
 from .sae import encode, load_sae, resolve_sae_id
 from .schema import Item, load_config, read_jsonl
 
@@ -30,13 +30,13 @@ OUT = _REPO / "data" / "runs" / "white"
 SAMPLE_CONDS = ["A", "C", "D", "E", "F"]  # the regimes we contrast qualitatively
 
 
-def _decode_window(lm, full_ids, pos, lo, radius=6) -> str:
-    """Decode a small token window around an answer-span peak, marking the peak token."""
-    seq = full_ids.tolist()
-    a, b = max(lo, pos - radius), min(len(seq), pos + 2)
-    pre = lm.tokenizer.decode(seq[a:pos], skip_special_tokens=True)
-    peak = lm.tokenizer.decode([seq[pos]], skip_special_tokens=True)
-    post = lm.tokenizer.decode(seq[pos + 1:b], skip_special_tokens=True)
+def _decode_window(lm, gen_ids: list[int], pos: int, radius: int = 6) -> str:
+    """Decode a small token window around an answer-token peak, marking the peak token.
+    pos indexes into the answer-span tokens (gen_ids)."""
+    a, b = max(0, pos - radius), min(len(gen_ids), pos + 2)
+    pre = lm.tokenizer.decode(gen_ids[a:pos], skip_special_tokens=True)
+    peak = lm.tokenizer.decode([gen_ids[pos]], skip_special_tokens=True)
+    post = lm.tokenizer.decode(gen_ids[pos + 1:b], skip_special_tokens=True)
     return f"{pre}⟦{peak}⟧{post}".replace("\n", " ")
 
 
@@ -73,25 +73,27 @@ def main() -> None:
     snippets: dict[int, list[dict]] = {f: [] for f in feat_ids}
     cond_sum: dict[int, dict[str, list[float]]] = {f: {c: [] for c in SAMPLE_CONDS} for f in feat_ids}
 
-    for it in tqdm(sample, desc="qualitative"):
-        for cond in SAMPLE_CONDS:
-            cp = C.render(it, cond)
-            input_ids = build_prompt_ids(lm, cp.system, cp.user)
-            in_len = input_ids.shape[1]
-            _txt, full = generate(lm, input_ids, max_new_tokens=wb["max_new_tokens"], do_sample=False)
-            if full.shape[0] <= in_len:
-                continue
-            resid = resid_at_positions(lm, full, [layer])[layer]      # [seq, d_model]
-            ans = resid[in_len:]                                       # answer span
-            feats = encode(sae, ans)[:, fidx].float()                 # [n_out, k]
-            peak_vals, peak_pos = feats.max(dim=0)                    # per feature
-            means = feats.mean(dim=0)
-            for j, f in enumerate(feat_ids):
-                cond_sum[f][cond].append(float(means[j]))
-                snippets[f].append({
-                    "condition": cond, "activation": float(peak_vals[j]),
-                    "window": _decode_window(lm, full, in_len + int(peak_pos[j]), in_len),
-                    "item": it.id})
+    qbatch = int(os.environ.get("GOWEXP_BATCH", "16"))
+    for cond in SAMPLE_CONDS:
+        for s0 in tqdm(range(0, len(sample), qbatch), desc=f"qual:{cond}"):
+            batch = sample[s0:s0 + qbatch]
+            res = generate_batch(
+                lm, [(C.render(it, cond).system, C.render(it, cond).user) for it in batch],
+                [layer], wb["max_new_tokens"])
+            for it, r in zip(batch, res):
+                rr = r["resids"].get(layer)
+                if rr is None or rr.shape[0] == 0:
+                    continue
+                feats = encode(sae, rr.float())[:, fidx].float()     # [n_out, k]
+                peak_vals, peak_pos = feats.max(dim=0)
+                means = feats.mean(dim=0)
+                gen_ids = r["gen_ids"]
+                for j, f in enumerate(feat_ids):
+                    cond_sum[f][cond].append(float(means[j]))
+                    snippets[f].append({
+                        "condition": cond, "activation": float(peak_vals[j]),
+                        "window": _decode_window(lm, gen_ids, int(peak_pos[j])),
+                        "item": it.id})
 
     # keep top-K snippets per feature by activation, dedup by (item,condition)
     out_feats = []

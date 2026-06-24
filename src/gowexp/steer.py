@@ -11,17 +11,16 @@ features move behavior as much as D's, the effect is register, not Gowith semant
 """
 from __future__ import annotations
 
-import contextlib
 import json
+import os
 from pathlib import Path
-from typing import Iterator
 
 import numpy as np
 import torch
 from tqdm import tqdm
 
 from . import conditions as C
-from .model import _decoder_layers, build_prompt_ids, generate, load_lm, set_determinism
+from .model import generate_batch, load_lm, set_determinism
 from .sae import load_sae, resolve_sae_id
 from .schema import Item, load_config, read_jsonl
 from .scoring import extract_answer
@@ -29,23 +28,6 @@ from .tasks import REGISTRY
 
 _REPO = Path(__file__).resolve().parents[2]
 OUT = _REPO / "data" / "runs" / "white"
-
-
-@contextlib.contextmanager
-def steer(lm, layer: int, vec: torch.Tensor) -> Iterator[None]:
-    """Add `vec` to the residual (resid_post) at `layer` on every forward, all positions."""
-    decoder = _decoder_layers(lm.model)
-
-    def hook(_mod, _inp, out):
-        if isinstance(out, tuple):
-            return (out[0] + vec.to(out[0].dtype),) + tuple(out[1:])
-        return out + vec.to(out.dtype)
-
-    h = decoder[layer].register_forward_hook(hook)
-    try:
-        yield
-    finally:
-        h.remove()
 
 
 def steering_vector(sae, feats: list[dict], coef: float, device, dtype) -> torch.Tensor:
@@ -108,23 +90,30 @@ def main() -> None:
         print(f"resuming steer: {len(done)} cells done")
     sf = open(steer_path, "a")
 
-    for it in tqdm(items, desc="steer"):
-        cp = C.render(it, "A")  # plain condition; no Gowith text at all
-        input_ids = build_prompt_ids(lm, cp.system, cp.user)
-        for source in ("gowith", "pseudo"):
-            for c in coefs:
-                if c == 0.0 and source == "pseudo":
-                    continue  # one shared unsteered baseline (source=gowith, coef=0)
-                if (it.id, source, c) in done:
-                    continue
-                with steer(lm, layer, vectors[source][c]) if c != 0.0 else _nullctx():
-                    text, _ = generate(lm, input_ids, max_new_tokens=wb["max_new_tokens"],
-                                       do_sample=False)
-                sc = _score(it, text)
-                r = {"item_id": it.id, "task": it.task, "source": source,
-                     "coef": c, "text": text, "scores": sc}
-                rows.append(r)
-                sf.write(json.dumps(r) + "\n")
+    # plain (A) prompts only; steering injects the features, no Gowith text present.
+    a_render = {it.id: C.render(it, "A") for it in items}
+    MAXB = int(os.environ.get("GOWEXP_BATCH", "24"))
+    # one shared unsteered baseline at gowith/coef=0; pseudo skips coef=0.
+    pairs = [("gowith", c) for c in coefs] + [("pseudo", c) for c in coefs if c != 0.0]
+    total = sum(1 for it in items for s, c in pairs if (it.id, s, c) not in done)
+    pbar = tqdm(total=total, desc="steer")
+    for source, c in pairs:
+        vec = None if c == 0.0 else vectors[source][c]
+        pend = [it for it in items if (it.id, source, c) not in done]
+        for s0 in range(0, len(pend), MAXB):
+            batch = pend[s0:s0 + MAXB]
+            prompts = [(a_render[it.id].system, a_render[it.id].user) for it in batch]
+            res = generate_batch(lm, prompts, [], wb["max_new_tokens"],
+                                 steer_vec=vec, steer_layer=layer)
+            for it, r in zip(batch, res):
+                sc = _score(it, r["completion"])
+                row = {"item_id": it.id, "task": it.task, "source": source,
+                       "coef": c, "text": r["completion"], "scores": sc}
+                rows.append(row)
+                sf.write(json.dumps(row) + "\n")
+            sf.flush()
+            pbar.update(len(batch))
+    pbar.close()
     sf.close()
 
     # quick on-box summary: primary-metric rate vs coef, per source
@@ -141,11 +130,6 @@ def main() -> None:
                                 for s in ("gowith", "pseudo")}}
     (OUT / "steer_summary.json").write_text(json.dumps(summ, indent=1))
     print(f"wrote {len(rows)} steering generations -> {OUT}/steer.jsonl")
-
-
-@contextlib.contextmanager
-def _nullctx() -> Iterator[None]:
-    yield
 
 
 if __name__ == "__main__":

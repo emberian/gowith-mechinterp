@@ -24,7 +24,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from .model import build_prompt_ids, generate, load_lm, resid_at_positions, set_determinism
+from collections import defaultdict
+
+from .model import generate_batch, load_lm, set_determinism
 from .sae import d_sae, encode, load_sae, resolve_sae_id
 from .schema import Generation, RenderedPrompt, load_config, read_jsonl
 
@@ -100,35 +102,46 @@ def main() -> None:
         for L in layers:
             np.savez_compressed(OUT / f"sae_means_L{L}.npz", means=means[L])
 
-    n_new = 0
-    for i, p in enumerate(tqdm(prompts, desc="white-box")):
-        if (p.item_id, p.condition) in done:
-            continue
-        input_ids = build_prompt_ids(lm, p.system, p.user)
-        in_len = input_ids.shape[1]
-        completion, full = generate(lm, input_ids, max_new_tokens=wb["max_new_tokens"],
-                                    do_sample=False)
-        ans_lo, ans_hi = in_len, full.shape[0]
-        n_out = ans_hi - ans_lo
+    # Batched generation grouped by condition (uniform lengths) with a KV-memory
+    # budget: batch size ~ BUDGET / max_input_len, capped at MAXB.
+    MAXB = int(os.environ.get("GOWEXP_BATCH", "24"))
+    BUDGET = int(os.environ.get("GOWEXP_TOKBUDGET", "20000"))
+    todo = [(i, p) for i, p in enumerate(prompts) if (p.item_id, p.condition) not in done]
+    groups: dict[str, list] = defaultdict(list)
+    for i, p in todo:
+        groups[p.condition].append((i, p))
 
-        if n_out > 0:
-            resid = resid_at_positions(lm, full, layers)  # {L: [seq, d_model]}
-            for L in layers:
-                ans = resid[L][ans_lo:ans_hi]                 # [n_out, d_model]
-                feats = encode(saes[L], ans)                  # [n_out, d_sae]
-                means[L][i] = feats.float().mean(dim=0).to("cpu", torch.float16).numpy()
-            del resid
-
-        g = Generation(item_id=p.item_id, task=p.task, condition=p.condition,
-                       model=wb["model_id"], sample_idx=0, decode="greedy",
-                       text=completion, n_input_tokens=int(in_len), n_output_tokens=int(n_out),
-                       sae_record=f"row:{i}")
-        gen_f.write(json.dumps(g.to_dict(), ensure_ascii=False) + "\n")
-        n_new += 1
-        if n_new % 200 == 0:
+    n_new, since_ckpt = 0, 0
+    pbar = tqdm(total=len(todo), desc="white-box")
+    for cond, lst in groups.items():
+        lst.sort(key=lambda x: x[1].n_input_tokens or 0, reverse=True)
+        k = 0
+        while k < len(lst):
+            first_len = max(1, lst[k][1].n_input_tokens or 100)
+            bsize = max(1, min(MAXB, BUDGET // first_len))
+            batch = lst[k:k + bsize]
+            k += bsize
+            res = generate_batch(lm, [(p.system, p.user) for _, p in batch], layers,
+                                 wb["max_new_tokens"])
+            for (row, p), r in zip(batch, res):
+                for L in layers:
+                    rr = r["resids"].get(L)
+                    if rr is not None and rr.shape[0] > 0:
+                        feats = encode(saes[L], rr.float())
+                        means[L][row] = feats.float().mean(dim=0).to("cpu", torch.float16).numpy()
+                g = Generation(item_id=p.item_id, task=p.task, condition=p.condition,
+                               model=wb["model_id"], sample_idx=0, decode="greedy",
+                               text=r["completion"], n_input_tokens=r["n_in"],
+                               n_output_tokens=r["n_out"], sae_record=f"row:{row}")
+                gen_f.write(json.dumps(g.to_dict(), ensure_ascii=False) + "\n")
+                n_new += 1
+                since_ckpt += 1
+            pbar.update(len(batch))
             gen_f.flush()
-            _save_npz()
-
+            if since_ckpt >= 240:
+                since_ckpt = 0
+                _save_npz()
+    pbar.close()
     gen_f.close()
     _save_npz()
     (OUT / "row_index.json").write_text(json.dumps(row_index))

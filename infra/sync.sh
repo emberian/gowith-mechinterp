@@ -41,6 +41,7 @@ rsync -az --delete --human-readable --info=stats1,progress2 \
   --exclude '.venv' \
   --exclude '.git' \
   --exclude 'data/runs' \
+  --exclude 'data/prompts.jsonl' \
   --exclude 'report/figs' \
   --exclude '*.pem' \
   --exclude '__pycache__' \

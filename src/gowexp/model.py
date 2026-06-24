@@ -47,21 +47,52 @@ def load_lm(model_id: str, dtype: str = "bfloat16", revision: str = "main") -> L
         attn_implementation="sdpa",
     )
     model.eval()
-    n_layers = model.config.num_hidden_layers
-    return LM(model=model, tokenizer=tok, device="cuda", n_layers=n_layers)
+    cfg = model.config
+    # Gemma-3-12b-it is multimodal: text hyperparams live under text_config.
+    n_layers = getattr(cfg, "num_hidden_layers", None)
+    if n_layers is None and hasattr(cfg, "text_config"):
+        n_layers = cfg.text_config.num_hidden_layers
+    return LM(model=model, tokenizer=tok, device="cuda", n_layers=int(n_layers))
 
 
 def _decoder_layers(model: Any) -> Any:
-    """Locate the list of decoder layers across HF Gemma-3 nestings."""
-    for path in ("model.layers", "model.model.layers", "language_model.model.layers"):
+    """Locate the TEXT decoder layer list across HF Gemma-3 (multimodal) nestings.
+    Try known paths, then fall back to the longest ModuleList whose elements look
+    like decoder layers (have a self_attn submodule)."""
+    import torch.nn as nn
+
+    for path in ("model.layers", "model.model.layers", "model.language_model.layers",
+                 "language_model.model.layers", "model.text_model.layers"):
         obj = model
         try:
             for attr in path.split("."):
                 obj = getattr(obj, attr)
-            return obj
+            if isinstance(obj, nn.ModuleList) and len(obj) and hasattr(obj[0], "self_attn"):
+                return obj
         except AttributeError:
             continue
-    raise RuntimeError("could not locate decoder layers on model")
+    best = None
+    for _name, mod in model.named_modules():
+        if isinstance(mod, nn.ModuleList) and len(mod) and hasattr(mod[0], "self_attn"):
+            if best is None or len(mod) > len(best):
+                best = mod
+    if best is None:
+        raise RuntimeError("could not locate decoder layers on model")
+    return best
+
+
+def _as_ids(out: Any) -> torch.Tensor:
+    """apply_chat_template may return a Tensor or a BatchEncoding/dict; normalize to
+    a [1, seq] LongTensor."""
+    if hasattr(out, "shape") and not hasattr(out, "data"):
+        t = out
+    elif isinstance(out, dict) or hasattr(out, "data"):
+        t = out["input_ids"]
+    else:
+        t = torch.as_tensor(out)
+    if t.dim() == 1:
+        t = t.unsqueeze(0)
+    return t
 
 
 def build_prompt_ids(lm: LM, system: str, user: str) -> torch.Tensor:
@@ -69,17 +100,17 @@ def build_prompt_ids(lm: LM, system: str, user: str) -> torch.Tensor:
     'system' role, so fall back to folding system into the user turn."""
     tok = lm.tokenizer
     try:
-        ids = tok.apply_chat_template(
+        out = tok.apply_chat_template(
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             add_generation_prompt=True, return_tensors="pt",
         )
     except Exception:
         merged = f"{system}\n\n{user}" if system else user
-        ids = tok.apply_chat_template(
+        out = tok.apply_chat_template(
             [{"role": "user", "content": merged}],
             add_generation_prompt=True, return_tensors="pt",
         )
-    return ids.to(lm.device)
+    return _as_ids(out).to(lm.device)
 
 
 @torch.no_grad()
@@ -120,6 +151,67 @@ def capture_resid(lm: LM, layers: list[int]) -> Iterator[dict[int, list[torch.Te
     finally:
         for h in handles:
             h.remove()
+
+
+@torch.no_grad()
+def generate_batch(lm: LM, items: list[tuple[str, str]], layers: list[int],
+                   max_new_tokens: int, steer_vec: torch.Tensor | None = None,
+                   steer_layer: int | None = None) -> list[dict]:
+    """Left-padded batched greedy generation with DURING-generation residual capture.
+
+    For each (system, user) item returns {completion, n_in, n_out, resids:{layer:[n_out,d_model]}}.
+    Capture accumulates the last-position resid_post at each decode step (no separate
+    re-forward). Optional steer_vec is added at steer_layer on every forward.
+    """
+    tok = lm.tokenizer
+    pad_id = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+    id_list = [build_prompt_ids(lm, s, u)[0] for (s, u) in items]
+    lens = [int(t.shape[0]) for t in id_list]
+    maxlen = max(lens)
+    B = len(id_list)
+    input_ids = torch.full((B, maxlen), pad_id, dtype=torch.long, device=lm.device)
+    attn = torch.zeros((B, maxlen), dtype=torch.long, device=lm.device)
+    for i, t in enumerate(id_list):
+        input_ids[i, maxlen - lens[i]:] = t
+        attn[i, maxlen - lens[i]:] = 1
+
+    decoder = _decoder_layers(lm.model)
+    handles = []
+    store: dict[int, list[torch.Tensor]] = {L: [] for L in layers}
+    for L in layers:
+        def mk(L):
+            def hook(_m, _i, out):
+                hs = out[0] if isinstance(out, tuple) else out
+                store[L].append(hs[:, -1, :].detach().to(torch.float16))
+            return hook
+        handles.append(decoder[L].register_forward_hook(mk(L)))
+    if steer_vec is not None:
+        def shook(_m, _i, out):
+            if isinstance(out, tuple):
+                return (out[0] + steer_vec.to(out[0].dtype),) + tuple(out[1:])
+            return out + steer_vec.to(out.dtype)
+        handles.append(decoder[steer_layer].register_forward_hook(shook))
+
+    try:
+        out = lm.model.generate(input_ids=input_ids, attention_mask=attn,
+                                max_new_tokens=max_new_tokens, do_sample=False,
+                                pad_token_id=pad_id)
+    finally:
+        for h in handles:
+            h.remove()
+
+    gen = out[:, maxlen:]
+    stacked = {L: torch.stack(store[L][1:], dim=0) for L in layers if len(store[L]) > 1}
+    results = []
+    for i in range(B):
+        gi = gen[i]
+        eos = (gi == tok.eos_token_id).nonzero()
+        n_out = int(eos[0].item()) if eos.numel() else int(gi.shape[0])
+        completion = tok.decode(gi[:n_out], skip_special_tokens=True)
+        resids = {L: stacked[L][:n_out, i, :] for L in layers if L in stacked}
+        results.append({"completion": completion, "n_in": lens[i], "n_out": n_out,
+                        "gen_ids": gi[:n_out].tolist(), "resids": resids})
+    return results
 
 
 @torch.no_grad()
