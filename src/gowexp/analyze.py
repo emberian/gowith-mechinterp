@@ -27,14 +27,31 @@ B_BOOT = 2000
 
 # ---- metric extraction ------------------------------------------------------
 
+# which arm each task belongs to (does Gowith DEGRADE general reasoning vs HELP in-domain)
+ARM = {"nonmonotonic": "degradation", "observable": "degradation", "epistemic": "degradation",
+       "agency": "in-domain", "correlative": "in-domain"}
+CRISP = {"nonmonotonic", "observable", "epistemic"}
+INDOMAIN = {"agency", "correlative"}
+_TASK_ORDER = ["nonmonotonic", "epistemic", "observable", "agency", "correlative"]
+
+
+def tasks_in(df) -> list[str]:
+    present = set(df.task.unique())
+    return [t for t in _TASK_ORDER if t in present]
+
+
 def headline(rec: dict) -> float:
-    """Higher = better epistemic self-monitoring, per task. NaN if not applicable."""
+    """Higher = better, per task. NaN if not applicable (e.g. knowable controls)."""
     s = rec["scores"]
     t = rec["task"]
     if t == "nonmonotonic":
         return float(s["correct_final"])
     if t == "observable":
         return float(s["accuracy"])
+    if t == "agency":
+        return float(s["role_accuracy"])
+    if t == "correlative":
+        return float(s["rubric_score"]) if s.get("rubric_score") is not None else np.nan
     if t == "epistemic":
         if s.get("knowable") is False:
             return float(not s["confabulated"])  # calibration on unknowable
@@ -91,7 +108,7 @@ def study1(df: pd.DataFrame) -> dict:
     g = df[df.condition.isin(REGISTER) & (df.decode == "greedy")]
     out: dict[str, Any] = {"conditions": REGISTER, "tasks": {}, "contrasts": {}, "verdicts": {}}
 
-    for task in ["nonmonotonic", "epistemic", "observable"]:
+    for task in tasks_in(g):
         t = g[g.task == task]
         if len(t) == 0:
             continue
@@ -120,6 +137,13 @@ def study1(df: pd.DataFrame) -> dict:
         out["contrasts"][task] = contrasts
         out["verdicts"][task] = _verdicts(contrasts)
     out["synthesis"] = _synthesize(out["verdicts"])
+    # headline trade-off: mean Gowith effect (D−A) per arm
+    out["by_arm"] = {}
+    for arm in ("degradation", "in-domain"):
+        ds = [out["contrasts"][t]["D_minus_A"]["est"] for t in out["contrasts"]
+              if ARM.get(t) == arm and out["contrasts"][t].get("D_minus_A", {}).get("est") is not None]
+        out["by_arm"][arm] = {"mean_D_minus_A": float(np.mean(ds)) if ds else None,
+                              "tasks": [t for t in out["contrasts"] if ARM.get(t) == arm]}
     return out
 
 
@@ -155,7 +179,7 @@ def _synthesize(verdicts: dict) -> dict:
 def study2(df: pd.DataFrame) -> dict:
     g = df[df.condition.isin(OBUDGET) & (df.decode == "greedy")]
     out: dict[str, Any] = {"levels": OBUDGET, "by_task": {}, "matched_output": {}}
-    for task in ["nonmonotonic", "epistemic", "observable"]:
+    for task in tasks_in(g):
         t = g[g.task == task]
         if len(t) == 0:
             continue
@@ -180,6 +204,47 @@ def study2(df: pd.DataFrame) -> dict:
 
 
 # ---- Mechanistic + steering + cross-family ----------------------------------
+
+def _arm_feature_contrast(primary: int) -> dict:
+    """The sharp question: does Gowith engage the SAME residual features on in-domain
+    stimuli as on crisp ones (a generic register effect), or DIFFERENT ones (something
+    domain-specific)? Compute D−A top features separately for crisp vs in-domain rows."""
+    npz = RUNS / "white" / f"sae_means_L{primary}.npz"
+    ri = RUNS / "white" / "row_index.json"
+    if not (npz.exists() and ri.exists()):
+        return {}
+    means = np.load(npz)["means"].astype(np.float32)
+    rows = json.loads(ri.read_text())
+    from collections import defaultdict
+    groups: dict[tuple, list[int]] = defaultdict(list)
+    for r in rows:
+        arm = "in-domain" if r["task"] in INDOMAIN else "crisp"
+        groups[(arm, r["condition"])].append(r["row"])
+
+    def cmean(arm: str, cond: str):
+        idx = groups.get((arm, cond), [])
+        return means[idx].mean(axis=0) if idx else None
+
+    out: dict[str, Any] = {}
+    for arm in ("crisp", "in-domain"):
+        A, D = cmean(arm, "A"), cmean(arm, "D")
+        if A is None or D is None:
+            continue
+        delta = D - A
+        top = np.argsort(-delta)[:40]
+        out[arm] = [{"feature": int(i), "delta": float(delta[i])} for i in top]
+    if "crisp" in out and "in-domain" in out:
+        cs = {x["feature"] for x in out["crisp"]}
+        isd = {x["feature"] for x in out["in-domain"]}
+        ov = len(cs & isd) / max(1, len(cs | isd))
+        out["overlap_jaccard"] = ov
+        out["interpretation"] = (
+            "HIGH overlap: Gowith engages the SAME features regardless of task domain — a "
+            "generic register effect." if ov >= 0.4 else
+            "LOW overlap: Gowith engages DIFFERENT features on in-domain vs crisp tasks — it is "
+            "doing something domain-specific, not merely adopting a register.")
+    return out
+
 
 def mechanistic() -> dict:
     f = RUNS / "white" / "feature_summary.json"
@@ -210,6 +275,10 @@ def mechanistic() -> dict:
     qf = RUNS / "white" / "qualitative.json"
     if qf.exists():
         out["qualitative"] = json.loads(qf.read_text())
+    # In-domain vs crisp feature contrast (needs the fetched per-prompt npz).
+    arm = _arm_feature_contrast(s["primary_layer"])
+    if arm:
+        out["arm_contrast"] = arm
     return out
 
 
@@ -226,7 +295,7 @@ def cross_family(df: pd.DataFrame, white_model: str) -> dict:
     for model in sorted(g.model.unique()):
         m = g[g.model == model]
         block = {}
-        for task in ["nonmonotonic", "epistemic", "observable"]:
+        for task in tasks_in(m):
             t = m[m.task == task]
             if len(t) == 0:
                 continue
