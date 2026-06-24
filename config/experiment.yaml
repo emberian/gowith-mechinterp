@@ -59,6 +59,7 @@ judges:
     - anthropic.claude-haiku-4-5-20251001-v1:0
     - amazon.nova-2-lite-v1:0
     - mistral.ministral-3-8b-instruct
+    - anthropic.claude-sonnet-4-6
   temperature: 0.0
 
 conditions:
@@ -86,10 +87,14 @@ output_budget:
     O3: exhaustive         # "reason exhaustively from multiple angles, then answer"
 
 tasks:
-  # N items authored per family; rendered across all conditions.
-  nonmonotonic:   {n_items: 288}  # 9 domains × 4 depths × 8 subjects (generated)
-  epistemic:      {n_items: 144}  # ~120 unknowable (round-robin types) + 24 knowable controls
-  observable:     {n_items: 48}   # each item is a 6-claim sort → 288 claim-level observations
+  # Two arms. DEGRADATION (does Gowith cost general reasoning?): crisp binary tasks.
+  # IN-DOMAIN (does it help on its home turf?): agency + correlative (+ the hard
+  # nonmonotonic tier breaks the ceiling). N items per family, rendered across conditions.
+  nonmonotonic:   {n_items: 144}  # easy+hard mix (hard half shuffles facts + distractors)
+  epistemic:      {n_items: 96}   # unknowable (confabulation) + knowable controls
+  observable:     {n_items: 32}   # observable-vs-metaphysical sort
+  agency:         {n_items: 48}   # role attribution — Gowith's -lead/-pressed/-witness turf
+  correlative:    {n_items: 40}   # causal/relational/systems reasoning — judge-scored
 
 budget:
   usd_cap: 60

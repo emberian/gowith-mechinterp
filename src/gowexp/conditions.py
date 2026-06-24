@@ -86,8 +86,10 @@ def render_D(item: Item, tok: Tok | None = None) -> ChatPrompt:
 
 
 def render_A(item: Item, tok: Tok | None = None) -> ChatPrompt:
-    """Concise plain baseline: minimal framing, no epistemic scaffolding."""
-    user = f"Think if you need to, then answer. {ANSWER_PROTOCOL}\n\n{_problem_block(item)}"
+    """Plain-English reasoning baseline. NOT a no-reasoning floor (that is O0): A
+    elicits step-by-step reasoning in plain English so that A-vs-D isolates the
+    *register*, not whether the model reasoned at all."""
+    user = f"Reason step by step, then give your answer. {ANSWER_PROTOCOL}\n\n{_problem_block(item)}"
     return ChatPrompt(system=SYSTEM_NEUTRAL, user=user)
 
 

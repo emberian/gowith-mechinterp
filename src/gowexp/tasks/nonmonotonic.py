@@ -146,11 +146,16 @@ def build_items(n: int = 288, seed: int = 1443) -> list[Item]:
                 for L in ("L2", "L3", "L4")[: depth - 2]:
                     layers.append(dom[L])
                 facts = [s.format(subj=subj) for s in layers]
-                # For ~half, append a trailing irrelevant fact so "use the last
-                # sentence" fails; choose deterministically by idx parity.
-                trailing = (idx % 2 == 1)
-                if trailing:
-                    facts.append(rng.choice(IRRELEVANT).format(subj=subj))
+                # ~half are HARD: interleave 2 distractors and shuffle every fact after
+                # the L0 rule, so "take the last sentence" fails and the model must reason
+                # from specificity, not order. Gold is order-independent (most-specific
+                # rule wins), so shuffling preserves correctness while breaking the ceiling.
+                hard = (idx % 2 == 1)
+                if hard:
+                    extra = [rng.choice(IRRELEVANT).format(subj=subj) for _ in range(2)]
+                    body = facts[1:] + extra
+                    rng.shuffle(body)
+                    facts = [facts[0]] + body
                 q = " ".join(facts) + " " + dom["pred_q"].format(subj=subj)
                 items.append(Item(
                     id=f"nm-{idx:03d}",
@@ -158,7 +163,7 @@ def build_items(n: int = 288, seed: int = 1443) -> list[Item]:
                     question=q,
                     gold={"answer": DEPTH_TO_ANSWER[depth]},
                     meta={"domain": dom["name"], "depth": depth, "subject": subj,
-                          "trailing_irrelevant": trailing},
+                          "hard": hard},
                 ))
                 idx += 1
     return items[:n]

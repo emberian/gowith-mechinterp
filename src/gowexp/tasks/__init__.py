@@ -4,12 +4,14 @@
 """
 from __future__ import annotations
 
-from . import epistemic, nonmonotonic, observable
+from . import agency, correlative, epistemic, nonmonotonic, observable
 
 REGISTRY = {
     "nonmonotonic": nonmonotonic,
     "epistemic": epistemic,
     "observable": observable,
+    "agency": agency,
+    "correlative": correlative,
 }
 
-__all__ = ["REGISTRY", "nonmonotonic", "epistemic", "observable"]
+__all__ = ["REGISTRY", "nonmonotonic", "epistemic", "observable", "agency", "correlative"]
