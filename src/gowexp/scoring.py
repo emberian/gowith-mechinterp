@@ -45,7 +45,16 @@ def extract_answer(text: str) -> str:
         ans = matches[-1].group(1).strip()
         return ans.splitlines()[0].strip() if ans else ""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    return lines[-1] if lines else ""
+    # No sigil (e.g. the model rambled and never wrote ANSWER, or was truncated):
+    # return the last few lines so the task scorer can still scan for a yes/no/decline
+    # near the conclusion rather than just the final fragment.
+    return " ".join(lines[-3:]) if lines else ""
+
+
+def has_answer_sigil(text: str) -> bool:
+    """Did the model emit an explicit ANSWER line? (Used to track non-conclusion rate,
+    which itself is a behavioral outcome — verbose registers can ramble past the cap.)"""
+    return bool(re.search(r"ANSWER\s*:", text, re.IGNORECASE))
 
 
 def declines(text: str) -> bool:

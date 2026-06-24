@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .schema import Generation, Item, ScoredRecord, read_jsonl, write_jsonl
-from .scoring import extract_answer
+from .scoring import extract_answer, has_answer_sigil
 from .tasks import REGISTRY
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -27,6 +27,7 @@ def _gen_files() -> list[Path]:
 def score_generation(item: Item, g: Generation) -> ScoredRecord:
     answer = extract_answer(g.text)
     scores = REGISTRY[item.task].score(item, answer, g.text)
+    scores["answered"] = has_answer_sigil(g.text)  # did it conclude with an ANSWER line?
     return ScoredRecord(
         item_id=g.item_id, task=g.task, condition=g.condition, model=g.model,
         sample_idx=g.sample_idx, decode=g.decode,

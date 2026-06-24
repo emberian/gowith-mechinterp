@@ -46,7 +46,7 @@ black_box:
     - anthropic.claude-haiku-4-5-20251001-v1:0
     - amazon.nova-2-lite-v1:0
     - mistral.ministral-3-8b-instruct
-  max_tokens: 512
+  max_tokens: 1024   # match white-box; Gowith reasoning is verbose and was truncating at 512
   temperature: 0.7
   samples_per_cell: 3
 
