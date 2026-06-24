@@ -1,0 +1,41 @@
+[project]
+name = "gowexp"
+version = "0.1.0"
+description = "Gowith mechinterp experiment: does relational-process register / token-budget change epistemic self-monitoring, and why?"
+readme = "README.md"
+requires-python = ">=3.11"
+# Base deps: enough to render prompts, score, analyze, and call Bedrock locally.
+# Torch + SAELens live in the [gpu] extra so a laptop need not install CUDA torch.
+dependencies = [
+    "transformers>=4.55",       # Gemma-3 tokenizer/model support
+    "huggingface-hub>=0.26",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "matplotlib>=3.9",
+    "statsmodels>=0.14",        # proportion CIs, contrasts
+    "boto3>=1.35",              # AWS Bedrock (judges + black-box replication)
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Installed on the GPU box. Torch is pinned in infra/setup_remote.sh against the
+# CUDA wheel index for byte-reproducibility; we only declare the floor here.
+gpu = [
+    "torch>=2.4",
+    "accelerate>=1.0",
+    "sae-lens>=6.0",            # Gemma Scope 2 loader + steering
+    "safetensors>=0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gowexp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

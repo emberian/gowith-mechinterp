@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+uv.lock.local
+# large run artifacts (kept out of git; archived separately)
+data/runs/
+report/figs/*.png
+report/report.pdf
+*.npz
+.DS_Store
+# secrets / ephemeral infra state never enter the repo
+*.pem
+.env
+infra/instance.env
+infra/preflight.json
+# box-only rendered prompts (large, regenerable from items + code)
+data/prompts.jsonl

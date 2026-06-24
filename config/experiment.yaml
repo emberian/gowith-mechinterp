@@ -1,0 +1,98 @@
+# Frozen experiment configuration — the single source of truth.
+# Pinning revisions + seeds here is what makes the run reproducible.
+experiment:
+  name: gowith-epistemic-register
+  # One-line statement of what we are testing, kept with the data.
+  question: >-
+    When a relational-process register (Gowith) or extra token budget appears to
+    improve a model's epistemic self-monitoring, which causal factor is responsible:
+    syntax, token-budget, weird-register, explicit-checklist, or vibes?
+
+seed: 1443  # global seed (echoes the Bridge channel id); used for torch/numpy/python
+
+white_box:
+  model_id: google/gemma-3-12b-it
+  model_revision: 96b6f1eccf38110c56df3a15bffe176da04bfd80  # pinned commit (preflight verifies)
+  dtype: bfloat16
+  # Gemma Scope 2 residual-stream SAEs. Layers sit at 25/50/65/85% depth.
+  # gemma-3-12b-it has 48 layers -> subset layers {12, 24, 31, 41}.
+  sae_release: gemma-scope-2-12b-it-res   # SAELens registry name for the resid_post SAEs
+  sae_layers: [12, 24, 31, 41]
+  sae_primary_layer: 24         # 50% depth, primary for headline analysis
+  sae_width: 65k                # real Gemma Scope 2 folder name (2^16); widths 16k/65k/262k/1m
+  sae_l0: medium
+  # Decoding. Generous ceiling: reasoning-token budget IS our IV (Study 2) and the
+  # proposed mechanism (Study 1), so we must NOT clip Gowith/O3 reasoning. These are
+  # short-answer tasks, so EOS usually fires well before this bound.
+  max_new_tokens: 1024
+  greedy_pass: true             # deterministic pass: behavioral + activation capture (PRIMARY)
+  sample_temperature: 0.7
+  sample_top_p: 0.95
+  samples_per_cell: 3           # optional stochastic samples; CIs come from item-level bootstrap
+
+steering:
+  # Causal capstone: take features that rise most under Gowith vs plain, then
+  # add them to the residual stream in the plain (A) condition and see whether
+  # the behavioral effect (e.g. confabulation drop) reproduces.
+  top_k_features: 8
+  coefficients: [2, 4, 8, 16]   # multiples of feature's typical activation
+  layer: 24
+  max_items: 160                # steering subset (balanced 80/80 across the two tasks)
+
+black_box:
+  # Cross-family behavioral replication (no activations) via AWS Bedrock.
+  region: us-east-1
+  models:
+    - anthropic.claude-haiku-4-5-20251001-v1:0
+    - amazon.nova-2-lite-v1:0
+    - mistral.ministral-3-8b-instruct
+  max_tokens: 512
+  temperature: 0.7
+  samples_per_cell: 3
+
+judges:
+  # Multi-judge panel for SECONDARY (non-binary) metrics only. Primary metrics are
+  # style-blind binary checks scored in code. Judges are explicitly distrusted for
+  # anything a fluent style could fool (see report limitations).
+  region: us-east-1
+  panel:
+    - anthropic.claude-haiku-4-5-20251001-v1:0
+    - amazon.nova-2-lite-v1:0
+    - mistral.ministral-3-8b-instruct
+  temperature: 0.0
+
+conditions:
+  # The six register conditions. token_match_to: D means B/E are padded to D's length.
+  order: [A, B, C, D, E, F]
+  token_match_to: D
+  labels:
+    A: concise-plain
+    B: padded-plain        # isolates token budget (no epistemic content)
+    C: telegraphic         # openness gestalt, stripped syntax (.nissa mode)
+    D: full-gowith         # syntax + register + implicit epistemic currents
+    E: pseudo-gowith       # token-matched weird-but-inert markers (isolates register)
+    F: checklist           # explicit plain-English epistemic checklist
+
+output_budget:
+  # Study 2: ember's claim is that the model's OWN generated reasoning tokens are
+  # load-bearing serial-compute room ("each token one step to progress"), not input
+  # length. So we vary the *reasoning budget* in plain English, semantics fixed, and
+  # read accuracy/calibration against realized output-token count (dose-response).
+  # Condition B above is the complementary control: it varies INPUT length only.
+  levels:
+    O0: answer-only        # "give only the final answer"
+    O1: brief              # "reason briefly, then answer"
+    O2: thorough           # "reason step by step thoroughly, then answer"
+    O3: exhaustive         # "reason exhaustively from multiple angles, then answer"
+
+tasks:
+  # N items authored per family; rendered across all conditions.
+  nonmonotonic:   {n_items: 288}  # 9 domains × 4 depths × 8 subjects (generated)
+  epistemic:      {n_items: 144}  # ~120 unknowable (round-robin types) + 24 knowable controls
+  observable:     {n_items: 48}   # each item is a 6-claim sort → 288 claim-level observations
+
+budget:
+  usd_cap: 60
+  instance_type: g6e.xlarge
+  region: us-east-1
+  auto_shutdown_minutes: 720      # generous safety net (~$22 ceiling); we teardown actively
