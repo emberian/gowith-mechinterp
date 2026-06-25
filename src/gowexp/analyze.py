@@ -420,7 +420,18 @@ def main() -> None:
     results["steering"] = steering()
 
     REPORT_DATA.mkdir(parents=True, exist_ok=True)
-    (REPORT_DATA / "results.json").write_text(json.dumps(results, indent=1))
+    # Sanitize non-finite floats (Gemma's massive activations overflow some L2 norms to
+    # inf) -> null, so the JSON is strictly valid for Typst and every parser.
+    def _finite(o):
+        if isinstance(o, float):
+            return o if np.isfinite(o) else None
+        if isinstance(o, dict):
+            return {k: _finite(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [_finite(v) for v in o]
+        return o
+
+    (REPORT_DATA / "results.json").write_text(json.dumps(_finite(results), indent=1))
     try:
         _figures(results)
     except Exception as e:  # figures are nice-to-have; never block results.json

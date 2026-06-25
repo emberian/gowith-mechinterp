@@ -90,9 +90,56 @@ def _render(R: dict) -> str:
             f"<span class='chip' style='--c:{COND_COLORS[c]}'>{c} · {COND_LABELS[c]}</span>"
             for c in "ABCDEF"),
         cross_family=cf_html or "<p class='muted'>pending Bedrock replication</p>",
-        qual=qual_html, evhtml=ev_html,
+        qual=qual_html, evhtml=ev_html, extras=_extras_html(R.get("extras", {})),
         data_js=data_js, tasks_js=json.dumps(tasks),
     )
+
+
+def _extras_html(ex: dict) -> str:
+    if not ex:
+        return ""
+    out = ["<h2>Extended analysis (controls &amp; mechanism)</h2>"]
+    # 13-model reasoning split
+    cf = ex.get("cross_family_13", {})
+    if cf.get("per_model"):
+        rr, nr = cf.get("mean_D_minus_A_reasoning"), cf.get("mean_D_minus_A_nonreasoning")
+        rows = ""
+        for m, v in sorted(cf["per_model"].items(), key=lambda x: x[1]["D_minus_A"]):
+            tag = "🧠" if v["reasoning"] else ""
+            col = "#0f9d58" if v["D_minus_A"] > -0.02 else "#db4437"
+            rows += (f"<tr><td class='mono'>{m}</td><td style='color:{col}'>{v['D_minus_A']*100:+.0f}pp</td>"
+                     f"<td>{tag}</td></tr>")
+        out.append(f"<h3>Cross-family: reasoning models are immune</h3>"
+                   f"<p>mean D−A: <b style='color:#0f9d58'>reasoning {rr*100:+.0f}pp</b> vs "
+                   f"<b style='color:#db4437'>non-reasoning {nr*100:+.0f}pp</b> "
+                   f"({cf['n_models']} models). Scale does not protect.</p>"
+                   f"<table><thead><tr><th>model</th><th>D−A</th><th></th></tr></thead>"
+                   f"<tbody>{rows}</tbody></table>"
+                   f"<p class='muted'>{cf.get('interpretation','')}</p>")
+    # alt conditions
+    alt = ex.get("alt_conditions", {})
+    if alt.get("conditions"):
+        rows = ""
+        for c, v in alt["conditions"].items():
+            na = f"{v['nonmono_acc']*100:.0f}%" if v.get("nonmono_acc") is not None else "—"
+            cr = f"{v['correlative_rubric']:.2f}" if v.get("correlative_rubric") is not None else "—"
+            kw = f"{v['keyword_rate']*100:.0f}%" if v.get("keyword_rate") is not None else "—"
+            rows += f"<tr><td>{c} · {v['label']}</td><td>{na}</td><td>{cr}</td><td>{kw}</td></tr>"
+        out.append(f"<h3>Can other prompts match Gowith?</h3>"
+                   f"<table><thead><tr><th>condition</th><th>nonmono acc</th>"
+                   f"<th>correlative rubric</th><th>keyword%</th></tr></thead><tbody>{rows}</tbody></table>"
+                   f"<p class='muted'>{alt.get('interpretation','')}</p>")
+    # trajectory
+    tr = ex.get("trajectory", {})
+    if tr.get("interpretation"):
+        out.append(f"<h3>Mechanism: local templating + long-range attention</h3>"
+                   f"<p class='muted'>{tr['interpretation']}</p>")
+    # caveats
+    cav = ex.get("caveats", {})
+    if cav:
+        items = "".join(f"<li>{v}</li>" for v in cav.values())
+        out.append(f"<h3>Key limitations</h3><ul class='muted'>{items}</ul>")
+    return "\n".join(out)
 
 
 def _cell_da(block: dict) -> str:
@@ -194,6 +241,8 @@ budget, weird register, an implicit checklist, or vibes?</p>
 
 <h2>Cross-family replication (Bedrock)</h2>
 {cross_family}
+
+{extras}
 
 <footer>
 ember &amp; Claude (Opus 4.8), from the Bridge channel · Gowith is CC0 by Andy Ayrey &amp; GPT-5.5 ·

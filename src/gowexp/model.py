@@ -35,16 +35,17 @@ class LM:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
 
-def load_lm(model_id: str, dtype: str = "bfloat16", revision: str = "main") -> LM:
+def load_lm(model_id: str, dtype: str = "bfloat16", revision: str = "main",
+            attn_implementation: str = "sdpa") -> LM:
     tok = AutoTokenizer.from_pretrained(model_id, revision=revision)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         revision=revision,
         torch_dtype=getattr(torch, dtype),
         device_map="cuda",
-        # sdpa is fast and fully compatible with our module forward-hooks (we hook the
-        # decoder layer output directly, not output_hidden_states).
-        attn_implementation="sdpa",
+        # sdpa is fast and fully compatible with our module forward-hooks; but sdpa does
+        # NOT return attention weights, so the attn-range probe overrides this to "eager".
+        attn_implementation=attn_implementation,
     )
     model.eval()
     cfg = model.config

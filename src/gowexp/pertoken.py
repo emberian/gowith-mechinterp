@@ -35,7 +35,8 @@ from .schema import Item, load_config, read_jsonl
 
 _REPO = Path(__file__).resolve().parents[2]
 OUT = _REPO / "data" / "runs" / "white"
-CONDS = ["A", "B", "D", "E"]
+import os as _os
+CONDS = _os.environ.get("GOWEXP_PT_CONDS", "A,B,D,E,Y,W,P").split(",")
 TASKS = ["nonmonotonic", "correlative"]  # one crisp, one goopy
 
 
@@ -46,9 +47,12 @@ def participation_ratio(traj: torch.Tensor) -> float:
     # numpy float64 SVD is the robust path (torch CUDA svd on bf16-origin data was
     # returning degenerate spectra). PR is scale-invariant, so no normalization needed.
     x = traj.detach().float().cpu().numpy().astype(np.float64)
-    x = x - x.mean(axis=0, keepdims=True)
-    if x.shape[0] < 2 or not np.isfinite(x).all():
+    # Gemma's "massive activations" overflow the float16 capture in a few tokens -> inf.
+    # Drop non-finite rows rather than discarding the whole trajectory.
+    x = x[np.isfinite(x).all(axis=1)]
+    if x.shape[0] < 2:
         return float("nan")
+    x = x - x.mean(axis=0, keepdims=True)
     try:
         s = np.linalg.svd(x, compute_uv=False)
     except np.linalg.LinAlgError:
@@ -76,10 +80,15 @@ def main() -> None:
     sae = load_sae(wb["sae_release"], resolve_sae_id(cfg, layer), device=lm.device)
     tok = lambda s: lm.tokenizer.encode(s, add_special_tokens=False)  # noqa: E731
 
-    rows: list[dict] = []
+    # resumable + crash-safe: incremental rows file, skip done (item,cond).
+    rows_path = OUT / "pertoken.rows.jsonl"
+    rows: list[dict] = list(read_jsonl(rows_path)) if rows_path.exists() else []
+    done = {(r["item"], r["condition"]) for r in rows}
+    rf = open(rows_path, "a")
     for task in TASKS:
         for cond in CONDS:
-            for it in tqdm(sample[task], desc=f"pt:{task}:{cond}"):
+            for it in tqdm([x for x in sample[task] if (x.id, cond) not in done],
+                           desc=f"pt:{task}:{cond}"):
                 cp = C.render(it, cond, tok)
                 # batch of 1 so we get the full per-token resid trajectory back
                 res = generate_batch(lm, [(cp.system, cp.user)], [layer], max_new)[0]
@@ -102,7 +111,7 @@ def main() -> None:
                     new = a & ~seen
                     novelty[t] = new.sum() / max(1, a.sum())
                     seen |= a
-                rows.append({
+                row = {
                     "item": it.id, "task": task, "condition": cond, "n_out": int(traj.shape[0]),
                     "participation_ratio": pr,
                     "pr_per_token": pr / int(traj.shape[0]),  # normalize for length
@@ -110,8 +119,12 @@ def main() -> None:
                     "l0_mean": float(np.mean(l0)), "l0_cv": float(np.std(l0) / (np.mean(l0) + 1e-9)),
                     "novelty_mean": float(np.mean(novelty)),
                     "novelty_tail": float(np.mean(novelty[len(novelty) // 2:])),  # 2nd half: still progressing?
-                })
+                }
+                rows.append(row)
+                rf.write(json.dumps(row) + "\n")
+                rf.flush()
 
+    rf.close()
     # aggregate per (task, condition)
     agg: dict[str, dict] = {}
     metrics = ["participation_ratio", "pr_per_token", "step_rel_mean", "step_rel_cv",

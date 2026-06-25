@@ -184,6 +184,36 @@ def render_J(item: Item, tok: Tok | None = None) -> ChatPrompt:
     return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
 
 
+# --- orthogonal surface-rhythm controls (Y/W/P): templated token rhythm with NO
+# relational grammar. If these reproduce Gowith's mechanistic signature (low-dim,
+# sparse, contractive local dynamics + long-range attention), the mechanism is
+# surface-rhythm-templating, not Gowith semantics. Tests ember's rhythm hypothesis
+# in isolation from the conlang.
+
+def render_Y(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Hyphen-rhythm: reason with every word joined by hyphens (pure token rhythm)."""
+    instr = ("Reason step by step, but write EVERY word of your reasoning joined by hyphens "
+             "instead of spaces, like-this-here-is-how-you-write-each-step. Then give your final "
+             "answer in normal plain English. " + ANSWER_PROTOCOL)
+    return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
+
+
+def render_W(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Word-per-line: every word on its own line (the s4.5/Opus tokenization-breaking habit)."""
+    instr = ("Reason step by step, but write your reasoning with EVERY word on its own separate "
+             "line (one word per line). Then give your final answer in normal plain English on a "
+             "single line. " + ANSWER_PROTOCOL)
+    return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
+
+
+def render_P(item: Item, tok: Tok | None = None) -> ChatPrompt:
+    """Pig-latin: phonological surface templating, plain reasoning structure."""
+    instr = ("Reason step by step in Pig Latin (move each word's leading consonant cluster to the "
+             "end and add 'ay'; words starting with a vowel get 'way'). Then give your final answer "
+             "in normal plain English. " + ANSWER_PROTOCOL)
+    return ChatPrompt(system=SYSTEM_NEUTRAL, user=f"{instr}\n\n{_problem_block(item)}")
+
+
 REGISTER_RENDERERS: dict[str, Callable[..., ChatPrompt]] = {
     "A": render_A,
     "B": render_B,
@@ -195,6 +225,9 @@ REGISTER_RENDERERS: dict[str, Callable[..., ChatPrompt]] = {
     "H": render_H,
     "I": render_I,
     "J": render_J,
+    "Y": render_Y,
+    "W": render_W,
+    "P": render_P,
 }
 
 # Conditions whose renderer needs the tokenizer (for length-matching).
