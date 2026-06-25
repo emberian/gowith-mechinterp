@@ -43,19 +43,19 @@ def participation_ratio(traj: torch.Tensor) -> float:
     """traj: [seq, d_model] residuals. PR = (Σλ)²/Σλ² over the centred covariance
     spectrum (λ = singular_value²) — effective dimensionality of the trajectory.
     SVD on the normalised matrix is numerically robust (Gemma has large act norms)."""
-    x = traj.float()
-    x = x - x.mean(dim=0, keepdim=True)
-    x = x / (x.norm() + 1e-6)  # global scale: keeps SVD well-conditioned
+    # numpy float64 SVD is the robust path (torch CUDA svd on bf16-origin data was
+    # returning degenerate spectra). PR is scale-invariant, so no normalization needed.
+    x = traj.detach().float().cpu().numpy().astype(np.float64)
+    x = x - x.mean(axis=0, keepdims=True)
+    if x.shape[0] < 2 or not np.isfinite(x).all():
+        return float("nan")
     try:
-        s = torch.linalg.svdvals(x).double()
-    except Exception:
-        try:
-            s = torch.linalg.svdvals(x.cpu()).double()
-        except Exception:
-            return float("nan")
+        s = np.linalg.svd(x, compute_uv=False)
+    except np.linalg.LinAlgError:
+        return float("nan")
     lam = s * s
     ssum = lam.sum()
-    return float((ssum * ssum) / ((lam * lam).sum() + 1e-12)) if ssum > 0 else 0.0
+    return float((ssum * ssum) / (np.square(lam).sum() + 1e-12)) if ssum > 0 else float("nan")
 
 
 def main() -> None:
