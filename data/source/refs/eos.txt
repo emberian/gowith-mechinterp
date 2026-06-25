@@ -1,0 +1,4206 @@
+Generalization at the Edge of Stability
+Mario Tuci∗
+
+mario.tuci@inria.fr
+
+INRIA, CNRS, Département d’Informatique de l’Ecole Normale Supérieure / PSL, France
+Department of Computing, Imperial College London, United Kingdom
+
+Caner Korkmaz∗
+
+c.korkmaz23@imperial.ac.uk
+
+Department of Computing, Imperial College London, United Kingdom
+
+Umut Şimşekli†
+
+umut.simsekli@inria.fr
+
+arXiv:2604.19740v1 [cs.LG] 21 Apr 2026
+
+INRIA, CNRS, Département d’Informatique de l’Ecole Normale Supérieure / PSL, France
+
+Tolga Birdal†
+
+tbirdal@imperial.ac.uk
+
+Department of Computing, Imperial College London, United Kingdom
+
+Abstract
+Training modern neural networks often relies on large learning rates, operating at the edge
+of stability, where the optimization dynamics exhibit oscillatory and chaotic behavior.
+Empirically, this regime often yields improved generalization performance, yet the
+underlying mechanism remains poorly understood. In this work, we represent stochastic
+optimizers as random dynamical systems, which often converge to a fractal attractor
+set (rather than a point) with a smaller intrinsic dimension. Building on this connection
+and inspired by Lyapunov dimension theory, we introduce a novel notion of dimension,
+coined the ‘sharpness dimension’, and prove a generalization bound based on this
+dimension. Our results show that generalization in the chaotic regime depends on the
+complete Hessian spectrum and the structure of its partial determinants, highlighting
+a complexity that cannot be captured by the trace or spectral norm considered in prior
+work. Experiments across various MLPs and transformers validate our theory while also
+providing new insights into the recently observed phenomenon of grokking.
+
+1
+
+Introduction
+
+Understanding why large, overparameterized neural networks trained by gradient-based methods
+generalize remains one of the central open problems in modern machine learning. Recent empirical
+evidence has revealed a phenomenon that challenges classical convex optimization theory. Cohen et al.
+(2021) observed that when training neural networks with gradient descent (GD) with a fixed learning
+rate η, the largest eigenvalue of the loss Hessian often oscillates around, and frequently exceeds 2/η,
+even as the training loss continues to decrease. This behavior, termed the edge of stability (EoS), has
+generated considerable interest (see Sec. 2), since the threshold 2/η implies instability and divergence
+for quadratic objectives Ghosh et al. (2025). Ly and Gong (2025) demonstrated that exceeding the
+threshold of η2 is sufficient to induce chaotic training dynamics. Additionally, in the chaotic regime
+the optimizer will not settle at a single point, rather it explores a bounded, typically fractal like set
+Singh Kalra et al. (2023). This raises a fundamental question:
+How can generalization be explained in the regime that is locally unstable and potentially chaotic?
+A natural response to this puzzle is to examine the local geometry of the loss landscape. In particular,
+the Hessian, which encodes local curvature, has long been viewed as a key lens for understanding
+generalization (Keskar et al., 2016; Jiang et al., 2019a), motivating a large body of work based on
+pointwise notions of sharpness and flatness (see Sec. 2). Despite its appeal and empirical successes,
+this viewpoint has been challenged. It is now well understood that sharpness-based criteria (e.g.,
+Hessian trace) are neither necessary nor sufficient for good generalization: there exist flat minima
+that generalize poorly and sharp that do well (Dinh et al., 2017; Kaur et al., 2023; Wen et al., 2023).
+∗,†
+
+Authors contributed equally.
+
+1
+
+Expanding
+direction
+
+w → Rd
+
+Contraction
+
+<latexit sha1_base64="3+GSjKwYCnuuRi9zBl8GFfFy3U0=">AAAEJ3icbVPNbhMxEHa7/JTyl8IRIVmklTigkM2hcKzgwrEg0lZKQmR7vYkbe72yxyTRak88Ta/wINwQHHkFngDvJhH1hpFWmv1mxt/nGQ/NpbDQ7f7a2Y1u3Lx1e+/O/t179x88bB08OrPaGcb7TEttLiixXIqM90GA5Be54URRyc/p7G0VP//MjRU6+wjLnI8UmWQiFYyAh8atp4dDRWBK02Je4qHI8OqXFh/KT8nhuNXudrq14W0nXjtttLbT8cHun2GimVM8AyaJtYO4m8OoIAYEk7zcHzrLc8JmZMIH3s2I4nZU1Pco8ZFHEpxq478McI1eryiIsnapqM+sVNpmrAL/Fxs4SF+PCpHlDnjGVkSpkxg0rpqCE2E4A7n0DmFGeK2YTYkhDHzrmiyVNlvilR1hKn2IamISXBHjSqCWYVUmGE/9cf+qmFY+CJvs+tLxy94LzIF1glolmNGVynJTu0H0xJB8ugxuCsRPflQs1h3F1wg9EKqq5IL27MFYCp758RkC4bSKhfVeA6NUhYB1lJG8eloNXDsZIkndx21mAbxxJtTSqV6EMEkunYUtWDkJwuh5gx8UMUuTNHLJjDMuG8r8aKrnG4Jz3+pUTEJQitw6VfotiZs7se2c9Trxcef4fa998ma9L3voCXqGnqMYvUIn6B06RX3E0Bd0hb6ib9FV9D36Ef1cpe7urGseo8Ci338BsHxo1Q==</latexit>
+
+SD < d
+<latexit sha1_base64="+82B43UH3jjSvAHeWJsdVE6ZlEY=">AAAEGnicbZPNbhMxEMfdLB+lfKVw5GKRVuKAQjaHwoFDBRw4FkHaSkkUeb3exI29XtnjNtFq36RXeBBuiCsXXoMnwN4kot4w0kqj38x4/p5ZJ4XgBnq93zut6NbtO3d37+3df/Dw0eP2/pNTo6ymbECVUPo8IYYJnrMBcBDsvNCMyESws2T+3sfPLpk2XOVfYFmwsSTTnGecEnBo0m4fjCSBmZbl5w/VW5weTNqdXrdXG9524rXTQWs7mey3/oxSRa1kOVBBjBnGvQLGJdHAqWDV3sgaVhA6J1M2dG5OJDPjspZe4UNHUpwp7b4ccE1vVpREGrOUicv0Ok0z5uH/YkML2ZtxyfPCAsvpqlFmBQaF/RxwyjWjIJbOIVRzpxXTGdGEgptWs4vXZiq8skOcCBdKFNEp9o2xF6hEWJVzyjJ33L8qqqQLwia7vnT8qv8SM6DdoFZyqpVXWW1qN0RNNSlmy+CmQNyyx+ViPVF8o6EDoSovF5TrHqylZLlbnyYQbqtcGOc1WJLIEBibUFL4v6nBlRUhSes5bnfmwBpnQi09UYsQk/TCGtjC0grgWl01+oMkeqnTRi6ZM8pEQ5lbjf99Q3jlRp3xaQgFL4yVlXslcfNNbDun/W581D361O8cv1u/l130DD1HL1CMXqNj9BGdoAGi6BJdo6/oW3QdfY9+RD9Xqa2ddc1TFFj06y/gjGMB</latexit>
+
+Contracting
+directions
+
+ω large → edge of stability
+<latexit sha1_base64="8Frw0aFgW3OB/3HRpYGCOFyVMy8=">AAAENnicbZPNbtNAEMe3CR+lfDSFI5cVSSUOVUhyKBwruHAsEmkrJVE0Xo+TJbtea3dMY1l5CZ6mV3gLLtwQV8QTsHYSUTuMZGn0mxnPf2d2g0RJR73e971G887de/f3Hxw8fPT4yWHr6OmFM6kVOBRGGXsVgEMlYxySJIVXiUXQgcLLYPGuiF9+RuukiT9SluBEwyyWkRRAHk1bJ50xEnS4AjtD3hlbOZsTWGuuOxxDj0zEHUEglaRs2mr3ur3S+K7T3zhttrHz6VHjzzg0ItUYk1Dg3KjfS2iSgyUpFK4OxqnDBMQCZjjybgwa3SQvj7Xix56EPDLWfzHxkt6uyEE7l+nAZ2qguavHCvi/2Cil6M0kl3GSEsZi3ShKFSfDixnxUFoUpDLvgLDSa+ViDhYE+UnWuxTa3Iqv7ZgHyocCAzbkRWNeCDSqWhVLgZH/3b8qYbQP0ja7PHT/1eCEI4lupVZLYU2hcrWt3RIzs5DMs8pJ/eYUTvLlZqL8VkMPqqoKuWR898pacoz9+ixQdVv50nmvxoJAV4FLAwFJcdNq3KSqSsJyjrudJWHtn1RKD8yyiiH8lDrawTpVJP1trvUnDTazYS0XFihQ1ZT51RTXtwqv/agjOatCJROX6pV/Jf36m9h1Lgbd/mn39MOgffZ281722XP2gr1kffaanbH37JwNmWBf2A37yr41b5o/mj+bv9apjb1NzTNWsebvv4oPblI=</latexit>
+
+Figure 1: Generalization at the Edge of Stability (EoS). Modeling stochastic optimization as
+a random dynamical system (RDS), we show that at EoS the leading sharpness satisfies λ1 > 0,
+implying expansion along at least one direction. The fundamental balance between expansion and
+contraction implies that the effective dimensionality of the dynamics, measured by our Sharpness
+Dimension (SD), is strictly smaller than the ambient parameter space: SD < d. We prove that
+the worst-case generalization error is governed by SD rather than the parameter count. Our
+results identify EoS as precisely the regime where generalization is controlled by a provably lowerdimensional attractor, providing a principled explanation for why overparameterized models can
+generalize beyond classical complexity measures.
+
+Consequently, characterizing generalization at the edge of stability through pointwise analysis of
+individual solutions may be fundamentally inadequate. For practical learning rates, training dynamics
+are expected to exhibit chaotic behavior (Singh Kalra et al., 2023), wherein training trajectories
+display sensitive dependence on initialization. In this regime, generalization performance should be
+attributed not to the properties of any single solution, but rather to the geometric and characteristics
+of the entire solution set explored by the optimizer in the long term.
+Contributions. We introduce a framework for studying generalization at the edge of chaos where
+modern deep networks operate (Cai et al., 2026). In particular, we contribute the following:
+• Attractor-Centric Framework: Modeling stochastic optimization as a random dynamical system
+(RDS), we shift the study of generalization at EoS from isolated parameter vectors to the geometric
+properties of the (random) attractor.
+• RDS Sharpness & Sharpness Dimension (SD): We propose two new complexity measures,
+RDS Sharpness & SD, derived not from the trajectory but from expansion and contraction rates
+that characterizes the attractor’s geometry.
+• Generalization Bound: We provide a new bound on the worst case generalization error,
+rigorously linking it to the fractal dimension of the Random Attractor measured as SD.
+• Empirical Validation: We explain how to compute SD efficiently and deploy our findings in
+quantifying generalization across multilayer perceptrons and recent transformers (GPT-2 (Radford
+et al., 2019)) as well as to study the recently introduced paradigm of grokking, delayed and sudden
+generalization (Power et al., 2022; Prieto et al., 2025).
+As illustrated in Fig. 1, our results identify EoS as precisely the regime where generalization is
+controlled by a provably lower-dimensional attractor, whose effective dimensionality is controlled by
+SD and is strictly smaller than the ambient parameter space. We prove that in the EoS, the worst-case
+generalization error is governed exactly by SD. Our findings present a principled explanation for
+why overparameterized models can generalize beyond classical complexity measures. Our code will
+be publicly available under: https://circle-group.github.io/research/GATES.
+2
+
+2
+
+Related Work
+
+Generalization bounds. Recent work has established strong empirical and theoretical connections
+between generalization and geometric and topological complexity measures derived from the optimization trajectory (Simsekli et al., 2020; Birdal et al., 2021; Dupuis et al., 2023; Andreeva et al.,
+2024; Tuci et al., 2025). In particular, it has been shown that weight iterates sampled after initial
+convergence encode critical information about generalization. Topological summaries such as the
+‘α-weighted lifetime sum’ exhibit consistent correlations with the generalization gap across training
+runs (Andreeva et al., 2024; Tuci et al., 2025). These findings suggest that the stochastic fluctuations
+observed during late-stage training are not merely noise, but reflect the optimizer exploring a structured geometric object. Differently, Camuto et al. (2021) showed that under contraction, stochastic
+GD (SGD) admits an invariant measure supported on a fractal set and linked its geometric complexity
+to generalization. However, this theory relies on contraction and therefore does not apply at the EoS.
+Hessian and generalization. Since Hochreiter and Schmidhuber (1994), it has been conjectured that
+flatter minima generalize better, motivating extensive work on flatness and sharpness (Keskar et al.,
+2016; Dinh et al., 2017; Neyshabur et al., 2017; Sagun et al., 2017; Yao et al., 2018; Chaudhari et al.,
+2019; Simsekli et al., 2019; Nguyen et al., 2019; Mulayoff and Michaeli, 2020; Tsuzuku et al., 2020;
+Ahn et al., 2023b). Despite this effort, there is no universally accepted definition of flatness, and most
+practical surrogates rely on second-order cues such as the trace of the Hessian (e.g., Jastrzebski et al.,
+2020; Wen et al., 2023).
+In parallel, optimization methods explicitly designed to favor flat minima have shown strong empirical
+gains in generalization (Izmailov et al., 2018; Wu et al., 2020; Zheng et al., 2021; Kaddour et al.,
+2022; Foret et al., 2020). Theoretically, minimizing the Hessian trace was shown to select the true
+solution in low-rank matrix recovery (Ding et al., 2024), extended to deep networks (Gatmiry et al.,
+2023), and supported empirically for large language models (Liu et al., 2023), and linked to output
+stability (Ma and Ying, 2021). More recently, generalization bounds have been obtained in terms of
+sums of gradient norms (Haddouche et al., 2024; Clerico et al., 2022), which reduce to the Hessian
+trace under suitable conditions. Despite these advances, recent results show that trace-based flatness
+alone does not guarantee good generalization (Wen et al., 2023).
+Edge of Stability (EoS) and chaos. The dynamics of deep network training have been widely studied,
+with early work documenting rapid changes in the local loss landscape during the initial phase of
+optimization (Keskar et al., 2016; Jastrzebski et al., 2020; Xing et al., 2018), and later characterizing
+it for gradient descent by Cohen et al. (2021). A growing literature has since been interested in EoS
+phenomena Arora et al. (2022); Ahn et al. (2023a, 2022); Wang et al. (2022); Chen and Bruna (2023);
+Damian et al. (2022); Zhu et al. (2022). In particular, Ahn et al. (2022); Ma and Ying (2021) showed
+that the existence of a forward-invariant set prevents divergence, and that for tanh networks such a
+set exists, explaining stability even at large learning rates in the EoS regime. Related phenomena
+have also been observed for SGD via the notion of mini-batch sharpness (Andreyev and Beneventano,
+2024). From a complementary perspective, stability analyses reveal connections to chaos (Sasdelli
+et al., 2021; Ly and Gong, 2025): in particular, Ly and Gong (2025) show that sustained criticality of
+the top Hessian eigenvalue (EoS) is sufficient to induce chaos, and Chemnitz and Engel (2025) study
+a cubic model to characterize the boundary between EoS and divergence.
+Our work connects Edge of Stability, chaotic dynamics, Hessian-based generalization bounds via
+rigorous generalization guarantees through the lens of random dynamical systems.
+
+3
+
+Preliminaries
+
+Learning setup. We consider supervised learning with parameter vector w ∈ Rd and population
+risk R(w) := EZ∼µ [ℓ(w, Z)], where µ is an unknown data distribution and ℓ : Rd × Z is the
+b S (w) :=
+composed
+loss function. In practice, training proceeds by minimizing the empirical risk R
+Pn
+1
+n
+⊗n
+using stochastic gradient methods. Our
+i=1 ℓ(w, Zi ) over a dataset S = {Zi }i=1 ∼ µz
+n
+analysis focuses on the asymptotic behavior of the optimization dynamics rather than on a single
+training iterate. Therefore we are interested in the worst-case generalization gap
+b S (w).
+G(AS (ω)) := sup R(w) − R
+(1)
+w∈AS (ω)
+
+3
+
+Here, AS (ω) denotes a dataset-dependent random set, where S ∈ Z n is the dataset and ω is an
+independent random variable capturing algorithmic noise (e.g., minibatch sampling). In particular,
+A(ω) denotes the random attractor associated with the optimizer, to be precised in Dfn 3.2.
+Random dynamical systems. To have a rigorous consideration of random attractors as sets, we
+represent stochastic optimization algorithms as discrete-time random dynamical systems (RDS)
+according to Arnold (2006). While the definition is abstract, it will follow with a concrete example
+for SGD, represented in the RDS form. Note that a similar formalism was introduced to study the
+stability of SGD in Chemnitz and Engel (2025).
+Definition 3.1 (Random Dynamical System). A discrete-time random dynamical system (RDS) on
+Rd is a tuple (Ω, F, P, θ, ϕ) consisting of the following components:
+
+1. A metric dynamical system (Ω, F, P, θ), where (Ω, F, P) is a probability space and θ : Ω → Ω is
+an invertible, measure-preserving, and ergodic transformation1 such that the map (t, ω) 7→ θt (ω)
+defines a Z-action on Ω. That is, the family of maps {θt }t∈Z satisfies
+θ0 = idΩ 2 ,
+θt+s = θt ◦ θs
+where we use the notation θω := θ(ω).
+
+for all t, s ∈ Z,
+
+2. A measurable cocycle ϕ : N0 × Ω × Rd → Rd over θ, which is (B(N0 ) ⊗ F ⊗ B(Rd ), B(Rd ))3
+-measurable and satisfies the cocycle property:
+ϕ(0, ω, ·) = IdRd ,
+(2a)
+s
+ϕ(t + s, ω, w) = ϕ(t, θ ω, ϕ(s, ω, w)),
+(2b)
+for all t, s ∈ N0 , ω ∈ Ω, and w ∈ Rd .
+
+An RDS is said to be k times continuously differentiable (or C k ) if the mapping w 7→ ϕ(t, ω, w) is
+C k for all t ∈ N0 and ω ∈ Ω.
+Let us provide a more intuitive explanation for the above definition by considering SGD as a special
+case. Given a dataset S = {Z1 , . . . , Zn } ∈ Z n , SGD is based on the following recursion:
+!
+1 X
+wt+1 = wt − η
+∇ℓ(wt , Zi ) ,
+(3)
+b
+i∈Ωt
+
+where Ωt ⊂ {1, . . . , n} is the minibatch with |Ωt | = b being the batch-size. Since there are only
+finitely many possible choices of minibatches, i.e., nb many, we can enumerate all the minibatches
+n
+such as {Ω(1) , . . . , Ω(( b )) } s.t. Ωt = Ω(j) for some j. Hence (3) can be alternatively written as:
+
+
+X
+1
+wt+1 = wt − η 
+∇ℓ(wt , Zi ) ,
+(4)
+b
+(j
+)
+i∈Ω t
+
+where jt is randomly drawn from the set {1, . . . , nb }.
+Going back to Definition 3.1, the random event ω corresponds to the algorithmic randomness. In
+the case of SGD, the only source of algorithmic randomness is the choice of minibatches at every
+iteration. Hence, for SGD, ω = {. . . , j−t , . . . j−1 , j0 , j1 , . . . , jt , . . . } will encapsulate the infinite
+sequence of minibatch indices that are drawn through optimization4 . In other words, a single event ω
+will contain all the information about the randomness coming from the algorithm.
+Given a sequence of minibatch indices ω, we can define the RDS map ϕ, which essentially corresponds
+to the algorithm update rule. For t = 1, we have the following form:
+
+
+X
+1
+ϕ(1, ω, w) := w − η 
+∇ℓ(w, Zi ) ,
+(5)
+b
+(j )
+i∈Ω
+
+−1
+
+0
+
+A transformation θ is measure-preserving if P(θ A) = P(A) for all A ∈ F, and ergodic if any invariant
+set A = θ−1 A satisfies P(A) ∈ {0, 1}.
+2
+For an arbitrary set A, idA : A → A denotes the identity map defined by idA (x) = x for all x ∈ A.
+3
+Let B(Rd ) or B(N0 ) denote the corresponding Borel σ-algebras.
+4
+For technical reasons, we need to consider a doubly infinite sequence that also takes into account for negative
+times −t.
+1
+
+4
+
+which coincides with (4), but only for t = 1.
+At iteration t, the stochastic gradient is computed over the minibatch with index jt−1 . Hence, to define
+the RDS map for a general t, i.e. ϕ(t, ω, w), we additionally need to extract the minibatch index jt−1
+from the infinite sequence ω. This operation will be done by the metric dynamical system θ. For this
+example5 , we set θ : Z × Ω → Ω to the so-called the ‘left-shift operator’, (θω)k := jk+1 , which takes
+an infinite sequence ω and shifts its elements by one coordinate, and returns the resulting infinite
+sequence. Iterating this operator t times would shift the coordinates t times: i.e., (θt ω)k := jk+t .
+Given all the ingredients, by (2b) we can define our RDS for a general t:
+ϕ(t, ω, w) = ϕ(1, θt−1 ω, ϕ(t − 1, ω, w)),
+
+(6)
+
+where ϕ(1, ·, ·) is defined in (5). It is now easy to verify that (6) exactly recovers the recursion given
+in (4). Finally, we observe that the system satisfies the cocycle property:
+ϕ(t, ω, w) = ϕ(1, θt−1 ω, ·) ◦ · · · ◦ ϕ(1, ω, w), ∀t ∈ N0 .
+This property serves as a fundamental consistency requirement. Intuitively, it ensures that evolving a
+state for t + s steps is equivalent to evolving it for s steps and then resuming for t more steps using
+the remaining noise history θs ω: system’s evolution is chronologically coherent.
+While denoting an optimization algorithm with such abstract notions might seem rather unorthodox,
+thanks to this formal connection, we will be able to access the rich toolbox of random dynamical
+systems theory.
+Random Attractors. Dynamics driven by stochastic optimization with persistent noise (e.g. constant
+learning rate SGD) generally do not converge to a single location. We are interested in the set in
+which an RDS settles.
+Definition 3.2 (Pullback Random Attractor). Let (Ω, F, P, θ, ϕ) be a discrete-time RDS according to
+Dfn. 3.1. A mapping ω 7→ A(ω) from Ω into the space of non-empty compact subsets of Rd (denoted
+comp(Rd ) ) is called a pullback random attractor if it is (F, B(comp(Rd )))-measurable and satisfies
+the following two properties for P-almost all ω ∈ Ω:
+1. Invariance: ϕ(t, ω, A(ω)) = A(θt ω) for all t ∈ N0 .
+
+2. Pullback Attraction: For every deterministic bounded set B ⊂ Rd :
+
+lim dist ϕ(t, θ−t ω, B), A(ω) = 0,
+t→∞
+
+(7)
+
+where dist(X, Y ) := supx∈X inf y∈Y ∥x − y∥ is the Hausdorff semi-distance. Further the image
+of a function is defined as follows. If f : X → Y is a map and A ⊂ X, then the image of A under
+f is defined as f (A) := { f (x) ∈ Y : x ∈ A }.
+In stochastic systems, attraction must be understood in a pullback rather than forward sense. Because
+fresh noise is continually injected, trajectories that come close can later separate, so pathwise forward
+convergence generally fails. The pullback viewpoint instead fixes a noise realization and examines
+the state at time t = 0 obtained by initializing the system in the remote past. The resulting pullback
+attractor is a noise-conditioned “snapshot” of the asymptotic state, representing the set to which all
+past histories converge at the present time. This is the central object of our analysis.
+
+4
+
+Theoretical Results
+
+Sharpness. Recent work introduced the notion of sharpness in terms of the Hessian of the empirical
+risk Cohen et al. (2021). We introduce an alternative notion of sharpness that extends to general
+random dynamical systems and provides an intuitive understanding of how the two notions are
+related.
+5
+
+For most of the stochastic optimizers one can use the same metric dynamical system as long as the
+algorithmic randomness is only coming from random minibatches.
+
+5
+
+Definition 4.1 (RDS Sharpness): Let (Ω, F, P, θ, ϕ) be a C 1 random dynamical system on Rd .
+For a fixed state w ∈ Rd , let Dϕ(1, ω, w) ∈ Rd×d denote the Jacobian (Fréchet derivative) of the
+map x 7→ ϕ(1, ω, x) evaluated at x = w. Let A(ω) be random compact set. We define the RDS
+Sharpness of Order k as the expected log-variation of the k-th singular value:
+"
+#
+λk := E
+
+sup ln σk (ω, w)
+w∈A(ω)
+
+∀k ∈ {1, . . . , d},
+
+(8)
+
+where σ1 (ω, w) ≥ · · · ≥ σd (ω, w) are the singular values of Dϕ(1, ω, w), assuming integrability
+holds.
+The next example, shows how Dfn. 4.1 relates to the classical notion of sharpness introduced in
+Cohen et al. (2021), which is defined in terms of the largest eigenvalue of the Hessian.
+Example 4.1 (GD Sharpness):
+We can interpret GD as a deterministic instance of a random dynamical system where the algorithb S (w) denote the empirical risk for a fixed dataset S ∈ Z n
+mic randomness ω is constant. Let R
+d
+and w ∈ R ; the discrete-time update map ϕ is defined as:
+b S (w).
+ϕ(1, w) = w − η∇R
+
+(9)
+
+b S (w). In
+The local stability of this system is governed by the Jacobian Dϕ(1, w) = I − η∇2 R
+the optimization literature (Cohen et al., 2021), sharpness is traditionally defined as the largest
+b S (w).
+eigenvalue the Hessian ∇2 R
+If we interpret our sharpness definition (see Dfn. 4.1) locally over point (e.g. A(ω) = {w}), we
+b S (w)∥), which exhibits
+obtain, that the sharpness of order 1 corresponds to λ1 = ln(∥I − η∇2 R
+related information to the largest eigenvalue of the hessian. Indeed in the EoS regime, we have
+λ1 ≥ 0.
+Edge of Stability and Chaos. To build intuition for the relationship between our notion of RDSsharpness of order 1 (Dfn. 4.1), the classical sharpness of Cohen et al. (2021), and the onset of chaos,
+we consider the linearized framework in Ly and Gong (2025), and examine GD in the EoS regime
+through its sensitivity to initial conditions. Let ϕ(K, w) denote the K-step GD cocycle (cf. (9))
+and consider a reference trajectory xt = ϕ(t, w0 ) = ϕ(1, wt−1 ). To track the propagation of an
+infinitesimal perturbation δwt , we linearize the dynamics:
+δwt+1 := ϕ(1, wt + δwt ) − ϕ(1, wt ) ≈ Dϕ(1, wt )δwt ,
+b S (wt ) is the one-step Jacobian (cf. Ex. 4.1). The local exponential
+where Dϕ(1, wt ) = I − η∇2 R
+growth rate in the direction vt = δwt /∥δwt ∥ is given by:
+log
+
+∥δwt+1 ∥
+b S (wt ))vt ∥.
+= log ∥(I − η∇2 R
+∥δwt ∥
+
+(10)
+
+b S (wt ). If the perturbation direction
+Let {(αi (t), ui (t))}di=1 denote the eigenpairs of the Hessian ∇2 R
+vt is aligned with an eigenvector ui (t), the one-step growth factor is |1 − ηαi (t)|. In the EoS
+regime, the maximum eigenvalue αmax (t) typically exceeds the stability threshold 2/η. When
+αmax (t) > 2/η, the growth factor satisfies |1−ηαmax (t)| > 1, or equivalently, ln |1−ηαmax (t)| > 0.
+In the context of Ex. 4.1 this would make the singular value σ1 in (8) larger than 0, hence we obtain
+λ1 > 0 for this system.
+If this condition holds on average along the trajectory, the top Lyapunov exponent Λ1 :=
+PT −1
+limT →∞ T1 t=0 ln ∥Dϕ(1, xt )vt ∥ see Arnold (2006, Lemma 3.2.2, p. 113) becomes positive .
+In the language of dynamical systems, Λ1 > 0 implies that trajectories diverge from each other
+exponentially (even though the system might not be divergent), providing a signature of deterministic
+chaos within the EoS oscillations. Hence, we argue that EoS emerges when the system is chaotic with
+λ1 > 0 and our goal is to develop theoretical tools specifically designed for this challenging setup.
+Remark 4.1 (Sharpness for an RDS). Andreyev and Beneventano (2024) observed that the expected
+mini-batch Hessian typically concentrates near the stability threshold 2/η.
+6
+
+Existence of Random Attractor. Since our work focuses on the random pullback attractor to which
+the RDS settles, we briefly discuss the existence of the random attractor.
+Proposition 4.1 (Existence of the Random Pullback Attractor (Crauel et al., 1997)). Let
+(Ω, F, P, θ, ϕ) be a C 0 random dynamical system on Rd . Suppose there exists a bounded random set K(ω) that is pullback absorbing for P-almost every ω ∈ Ω; that is, for every deterministic
+bounded set D ⊂ Rd , there exists a time T (D, ω) ≥ 0 such that
+ϕ(t, θ−t ω, D) ⊂ K(ω)
+
+∀t ≥ T (D, ω).
+
+(11)
+
+6
+
+Then, there exists a unique, compact and measurable random pullback attractor A(ω) satisfying
+Dfn. 3.2.
+Prop. 4.1 has a clear dynamical meaning. The existence of a pullback absorbing set K(ω) means that,
+for a fixed noise realization ω, all trajectories eventually enter a bounded region of the state space,
+provided the system is evolved from the distant past to the present. The random pullback attractor
+A(ω) is the smallest invariant set inside this region. It contains exactly the states that can be reached
+asymptotically under the fixed noise realization ω.
+Indeed, this demonstrates that local instability, when coupled with global dissipativity, leads to the
+emergence of a compact pullback attractor. An intuitive explanation of this mechanism, for example
+in the case of neural networks using tanh as activation function, is given by Ahn et al. (2022).
+Complexity meassure of Random Attractors. Given the existence of the random pullback attractor,
+a natural question arises: Can we quantify its complexity, particularly in the EoS regime, where we
+expect chaos.
+Definition 4.2 (Sharpness Dimension): Let (Ω, F, P, θ, ϕ) be a C 1 discrete random dynamical
+system on Rd . Further let A(ω) ⊂ Rd be an almost surely compact random set. As in Dfn. 4.1, let
+λk be the RDS sharpness of order k, for k = 1, . . . , d.
+Set
+(
+)
+i
+X
+∗
+j := max i ∈ {1, . . . , d} :
+λk ≥ 0 ,
+k=1
+
+∗
+
+with the convention j = 0 if λ1 < 0.
+The Sharpness Dimension of A(ω) is defined as
+
+Pj ∗
+λi
+
+, if 1 ≤ j ∗ < d,
+j ∗ + |λi=1
+j ∗ +1 |
+dimS A := d,
+if j ∗ = d,
+
+
+0,
+if λ1 < 0.
+Similar notions have been previously considered Kaplan and Yorke (2006); Hunt (1996); Feng and
+Simon (2022). The Sharpness Dimension SD measures the effective number of expanding directions
+of the dynamics on the attractor before global contraction dominates. It is defined from the ordered
+global sharpness indices λ1 ≥ λ2 ≥ · · · ≥ λd , which quantify worst-case logarithmic stretching
+Pj ∗
+rates along principal directions on the attractor. Let j ∗ be the largest index such that k=1 λk ≥ 0;
+then j ∗ is the maximal dimension in which volumes do not contract. Indeed, we observe that, in the
+case of a proper set, SD is strictly smaller than the ambient dimension in the EoS regime where λ1 is
+expected to be positive.
+Generalization Bounds. We are now ready to formulate our main theorem and establish the
+connection between our novel complexity measure and the worst-case generalization gap over the
+random pullback attractor. We start by stating our main assumptions, the first two of which are
+standard practice in the literature (Simsekli et al., 2020; Andreeva et al., 2024; Dupuis et al., 2024;
+Birdal et al., 2021):
+Assumption 4.2 (Boundedness of Loss). We assume the loss function ℓ : Rd × Z → R to be
+bounded. That is, there exists a constant B > 0 such that for all weights w ∈ Rd and z ∈ Z holds:
+0 ≤ ℓ(w, ω) ≤ B.
+6
+
+0
+Measurable with respect to the past σ-algebra F−∞
+:= σ{θt ω : t ≤ 0}.
+
+7
+
+Assumption 4.3 (Lipschitz Continuity of Loss). We assume that the loss function ℓ : Rd × Z → R
+satisfies the following properties for all z ∈ Z: The function w 7→ ℓ(w, z) is L-Lipschitz continuous
+for some L > 0. That is, for all w1 , w2 ∈ Rd : |ℓ(w1 , z) − ℓ(w2 , z)| ≤ L∥w1 − w2 ∥.
+
+Assumption 4.4 (Regular Random Dynamics). For each dataset S ∈ Z n , let (Ω, F, P, θ, ϕ) be a C 2
+discrete-time RDS according to Dfn. 3.1, with a unique compact random pullback attractor AS (ω).
+We assume:
+1. Non-Singularity: For P-a.e. ω we assume inf x∈A(ω) σd (Dϕ(1, ω, x) > 0
+2. Integrability:
+"
+#
+"
+E
+
+sup
+x∈AS (ω)
+
+ln ∥DϕS (1, ω, x)∥ < ∞
+
+and
+
+E
+
+sup
+x∈AS (ω)
+
+#
+
+ln ∥D2 ϕS (1, ω, x)∥ < ∞.
+
+3. Transition Index: There exists an integer j ∗ ∈ {1, . . . , d − 1} such that:
+∗
+
+j
+X
+i=1
+
+λi ≥ 0 >
+
+∗
+jX
++1
+
+λi ,
+
+i=1
+
+where λi denotes the global sharpness of order i (Dfn. 4.2).
+4. Bounded Distortion: For A ∈ Rd×d and j ∈ {1, . . . , d}, define
+∥A∥j := σ1 (A) · · · σj (A),
+
+(12)
+
+where σ1 (A) ≥ · · · ≥ σd (A) are the singular values of A. Equivalently, ∥A∥j is the maximal
+expansion factor of A on j-dimensional volumes.
+We assume that the spatial variation of ∥Dϕ(m, ω, ·)∥j over the attractor is subexponential in m:
+for each j ∈ {1, . . . , d},
+"
+#
+1
+E sup ln ∥Dϕ(m, ω, x)∥j − inf ln ∥Dϕ(m, ω, x)∥j = 0.
+(13)
+lim
+m→∞ m
+x∈A(ω)
+x∈A(ω)
+Intuitively, the j-volume growth rates along different orbits in A(ω) may differ at sub-exponential
+order, but coincide to leading exponential order as m → ∞. Conditions of this type, requiring the
+spatial variation of the cocycle to be subexponential, are commonly imposed in the smooth ergodic
+theory of random dynamical systems to obtain Lyapunov exponents that do not depend on the base
+point x ∈ A(ω); see, e.g., Arnold Arnold (2006) for related formulations. Under Assumption 4.4, we
+now present our main result.
+Theorem 4.5 (Generalization via Sharpness Dimension):
+Let S = {z1 , . . . , zn } ∼ µ⊗n
+be a dataset of size n. Let (Ω, F, P, θ, ϕ) be a discrete-time RDS
+z
+according to Dfn 3.1 such that Assump. 4.4 holds. Under Assumps. 4.2 and 4.3, there exists a
+constant C > 0 s.t. with probability at least 1 − ζ − γ over the joint draw (S, ω) ∼ µ⊗n
+z ⊗ P, there
+exists δn,γ > 0 such that for all 0 < δ < δn,γ ,
+r
+4 dimS AS log(1/δ)
+GS (A(ω)) ≤ 2Lδ + 2B
+n
+I∞ (AS (ω), S) + log(1/ζ) CB 2
+√
++
++ √ .
+n
+n
+We recall that GS (A(ω)) denotes the worst-case generalization gap (see (1)) and I∞ (AS (ω), S)
+(see Dfn. A.5) denotes the total mutual information between the random pullback attractor AS (ω)
+and S.
+Thm 4.5 rigorously links the generalization gap to the stability of training by showing that, at the EoS
+(where dimS AS < d), the generalization gap is governed by the global geometry of the attractor
+rather than by any isolated solution. In particular, the observed expansion along at least one direction
+implies that the attractor is confined to a proper subset of the ambient parameter space, of dimension
+strictly smaller than d. The sharpness dimension dimS AS quantifies this effect by capturing the
+spectral balance between the expanding directions and the remaining contracting ones.
+8
+
+Proof sketch. The main idea is to show that dimS AS upper bounds another notion of fractal dimension called the Minkowski dimension (MD, see Dfn. A.4). As the MD is directly linked to covering
+numbers, we directly obtain a generalization bound by relying on existing results (Dupuis et al.,
+2024). Proving the fact that dimS AS is larger than MD is achieved by covering AS (ω) by using
+ellipsoids whose principal axes are determined by λ1 , . . . , λd , then computing the covering number
+for these ellipsoids. The proof is given in App. B.1.
+Finally, the mutual term I∞ , wich is used to handle the dependece of the dataset S and the random
+pullback attractor AS (ω), can be avoided by using the recent ‘set stability’ framework of Tuci
+et al. (2025). Within this framework, we provide another generalization bound without the mutual
+information term in Thm. B.5.
+
+5
+
+Empirical Results
+
+Numerical Implementation. Unlike trajectory-based approaches Birdal et al. (2021); Simsekli et al.
+(2020); Andreeva et al. (2024), our generalization bound neither requires access to the full training
+trajectory nor necessitates tools of topological data analysis. Instead, our computational bottleneck
+lies in estimating the eigenvalue spectrum of the Hessian of a parameter near convergence (see App. D
+for a formal approximation result). For small-scale networks, this can be achieved via (potentially
+randomized) GPU-parallelized singular value decomposition (SVD) Halko et al. (2011). However,
+the quadratic memory complexity of the Hessian renders such approaches rapidly intractable as
+model size grows. This challenge is exacerbated by the fact that we require access not merely to
+the leading eigenvalues, but to the entire spectrum, which is dominated by a large mass of near-zero
+modes, precisely the regime where Krylov-based methods such as Lanczos iterations Lanczos (1950)
+become ineffective. To address this, we adopt stochastic Lanczos quadrature (SLQ) Lin et al. (2016);
+Golub and Welsch (1969), a scalable spectral estimation technique that has recently been analyzed
+and successfully applied in the context of (moderately sized) neural networks Ghorbani et al. (2019);
+Papyan (2018). Unlike classical SLQ where all runs probe a fixed matrix–vector product operator,
+we vary the operator across runs by computing Hessian–vector products on independently sampled
+minibatches. The operator is held fixed within each Lanczos run but resampled across runs so as to
+estimate the SD directly in expectation rather than post-hoc averaging over a single global spectrum.
+We present a complexity analysis in App. D.
+Metrics. We assess the correlation between various notions of complexity and generalization error
+by using Kendall’s coefficients (KC) Kendall (1938) as well as their “granulated” versions (GC) Jiang
+et al. (2019b). While the classical KC (denoted τ ) measures correlation between two quantities, it may
+fail to capture their causal relationship. Instead, one GC is defined for each hyperparameter (i.e., ψ LR
+for η and ψ BS for b); it measures correlation when only this hyperparameter is varying. Note that
+scaling the constant B in Thm. 4.5 does not affect the observed correlation between generalization
+and topological complexities.
+As target metrics, we compute the generalization gap (Gen. Gap) and loss gap as the absolute
+difference in accuracy and loss, respectively, both between training and test data.
+Notions of complexity. As a proxy to generalization, we use both Euclidean (∥·∥) and data-dependent
+(ρ) persistent homology (PH) dimensions (PH-Dim) Birdal et al. (2021); Dupuis et al. (2023), and
+α-weighted lifetime sums Andreeva et al. (2024) (Eα ) using a simulated trajectory of 5,000 iterations
+(PH-Dim-Fwd). We also consider the last 5,000 training iterations without trajectory simulation
+(PH-Dim-Bwd). We further include our RDS sharpness as λ1 , the leading singular value (SV) of
+b S (w) and our Sharpness Dimension (SD). In grokking settings, we also track Hessian
+I − η∇2 R
+trace (tr(H)) and the magnitude of its largest eigenvalue (sharpness), obtained as the absolute value
+of the largest Hessian eigenvalue. When η · sharpness > 1, the two quantities correspond; otherwise,
+RDS sharpness is determined by a non-positive Hessian eigenvalue.
+
+5.1
+
+Analysis
+
+Generalization in 3-layer small MLPs. We begin by experimenting on classical learning scenarios
+with a small 3-layer MLP trained on MNIST that allows computation of the exact eigenvalue
+spectrum of Hessian matrices. We use a width of 16, ReLU activation, and no bias, for a total of
+9
+
+12,960 parameters. We train the networks using SGD, without momentum or weight decay (W D),
+1 size (b) to define
+for 250 epochs using cross-entropy loss. We vary the learning rate (lr, η) and batch
+PH-Dim-Fwd
+1
+PH-Dim-Bwd
+a
+5
+×
+5
+grid
+of
+hyperparameters.
+For
+each
+(η,
+b)
+pair,
+we
+estimate
+the
+expectation
+in our
+Sharpness
+PH-Dim 1.00 0.10 0.64 0.67 -0.21 -0.36 -0.40
+0.8
+↑ · ↑2 and
+Dimension dimS AS (SD) by sampling random minibatches, computing
+parameter Eω →
+Hessians,
+Eω → ω
+2b
+taking
+the
+SVD
+of
+the
+I
+−
+η∇
+R
+(w)
+matrices.
+RDS
+sharpness
+values
+λ
+are
+then
+estimated
+as the
+0.10
+1.00
+0.74
+0.54
+0.50
+0.66
+0.34
+E , ! k " k2
+S
+k
+SD-KDE
+0.5
+0.6
+average of the log SVs and SD is computed
+following Definition 4.2.
+0.74
+
+1.00
+
+0.66
+
+0.30
+
+0.32
+
+0.19
+
+Correlations
+
+E, ! ; 0.64
+
+Ψ = (ΨLR + ΨBS )/2
+
+<latexit sha1_base64="6HPMTAdM1ht/6PUPsTkr+tNBdZE=">AAAB8XicbVBNS8NAEJ3Ur1q/qh69BIvgpSXpoXosKtJjBfuBbSibzaZdursJuxulhP4LLx4U8eq/8ea/cdvmoK0PBh7vzTAzz48ZVdpxvq3c2vrG5lZ+u7Czu7d/UDw8aqsokZi0cMQi2fWRIowK0tJUM9KNJUHcZ6Tjj69nfueRSEUjca8nMfE4GgoaUoy0kR6ajfIN5eXbp2BQLDkVZw57lbgZKUGG5qD41Q8inHAiNGZIqZ7rxNpLkdQUMzIt9BNFYoTHaEh6hgrEifLS+cVT+8wogR1G0pTQ9lz9PZEirtSE+6aTIz1Sy95M/M/rJTq89FIq4kQTgReLwoTZOrJn79sBlQRrNjEEYUnNrTYeIYmwNiEVTAju8surpF2tuLVK7a5aql9lceThBE7hHFy4gDo0oAktwCDgGV7hzVLWi/VufSxac1Y2cwx/YH3+AF1TkBQ=</latexit>
+
+<latexit sha1_base64="w9u+zszRXhiIdyKn8pRidoNtTsM=">AAAB8XicbVBNT8JAEJ3iF+IX6tFLIzHxAmk5oEeCHjhiIh8RGrLdbmHD7rbZ3WpIw7/w4kFjvPpvvPlvXKAHBV8yyct7M5mZ58eMKu0431ZuY3Nreye/W9jbPzg8Kh6fdFSUSEzaOGKR7PlIEUYFaWuqGenFkiDuM9L1Jzdzv/tIpKKRuNfTmHgcjQQNKUbaSA+tZvmW8nLjKRgWS07FWcBeJ25GSpChNSx+DYIIJ5wIjRlSqu86sfZSJDXFjMwKg0SRGOEJGpG+oQJxorx0cfHMvjBKYIeRNCW0vVB/T6SIKzXlvunkSI/VqjcX//P6iQ6vvZSKONFE4OWiMGG2juz5+3ZAJcGaTQ1BWFJzq43HSCKsTUgFE4K7+vI66VQrbq1Su6uW6o0sjjycwTlcggtXUIcmtKANGAQ8wyu8Wcp6sd6tj2VrzspmTuEPrM8fVzuQEA==</latexit>
+
+<latexit sha1_base64="Wd73P3pdm+xv4RsGhDOhJyONqCU=">AAACAXicbVDLSsNAFJ3UV62vqBvBTbAV3FiSLqrLogguK9gHNCFMJpN26GQmzEyEktaNv+LGhSJu/Qt3/o3TNgttPXDhcM693HtPkFAilW1/G4WV1bX1jeJmaWt7Z3fP3D9oS54KhFuIUy66AZSYEoZbiiiKu4nAMA4o7gTD66nfecBCEs7u1SjBXgz7jEQEQaUl3zyq3PiZC2kygJNzd+yikCt37Ncqvlm2q/YM1jJxclIGOZq++eWGHKUxZgpRKGXPsRPlZVAogiielNxU4gSiIezjnqYMxlh62eyDiXWqldCKuNDFlDVTf09kMJZyFAe6M4ZqIBe9qfif10tVdOllhCWpwgzNF0UptRS3pnFYIREYKTrSBCJB9K0WGkABkdKhlXQIzuLLy6Rdqzr1av2uVm5c5XEUwTE4AWfAARegAW5BE7QAAo/gGbyCN+PJeDHejY95a8HIZw7BHxifP55All4=</latexit>
+
+<latexit sha1_base64="9j9EBwMBAerIIK2CDwdBIyp/cyo=">AAAB+nicbVDLSsNAFJ3UV62vVJduBlvBjSXporosiuCygn1AE8JkOm2GTmbCzEQpsZ/ixoUibv0Sd/6N0zYLbT1w4XDOvdx7T5gwqrTjfFuFtfWNza3idmlnd2//wC4fdpRIJSZtLJiQvRApwignbU01I71EEhSHjHTD8fXM7z4Qqajg93qSED9GI06HFCNtpMAuV2+CzEMsidD03JORqAZ2xak5c8BV4uakAnK0AvvLGwicxoRrzJBSfddJtJ8hqSlmZFryUkUShMdoRPqGchQT5Wfz06fw1CgDOBTSFNdwrv6eyFCs1CQOTWeMdKSWvZn4n9dP9fDSzyhPUk04XiwapgxqAWc5wAGVBGs2MQRhSc2tEEdIIqxNWiUTgrv88irp1Gtuo9a4q1eaV3kcRXAMTsAZcMEFaIJb0AJtgMEjeAav4M16sl6sd+tj0Vqw8pkj8AfW5w9nnJN2</latexit>
+
+SD-SLQ
+
+2
+
+,
+
+2
+
+,
+
+1.00
+
+0.75
+
+0.02
+
+0.50
+
+0.21
+
+-0.40
+
+-0.05
+
+-0.42
+
+-0.27
+
+0.75
+
+1.00
+
+0.10
+
+0.64
+
+0.67
+
+-0.21
+
+0.09
+
+-0.36
+
+-0.40
+
+0.02
+
+0.10
+
+1.00
+
+0.74
+
+0.54
+
+0.50
+
+0.36
+
+0.66
+
+0.34
+
+0.50
+
+0.64
+
+0.74
+
+1.00
+
+0.66
+
+0.30
+
+0.38
+
+0.32
+
+0.19
+
+0.21
+
+0.67
+
+0.54
+
+0.66
+
+1.00
+
+0.30
+
+0.24
+
+0.20
+
+-0.16
+
+-0.40
+
+-0.21
+
+0.50
+
+0.30
+
+0.30
+
+1.00
+
+0.64
+
+0.83
+
+0.76
+
+-0.05
+
+0.09
+
+0.36
+
+0.38
+
+0.24
+
+0.64
+
+1.00
+
+0.54
+
+0.61
+
+-0.42
+
+-0.36
+
+0.66
+
+0.32
+
+0.20
+
+0.83
+
+0.54
+
+1.00
+
+0.83
+
+-0.27
+
+-0.40
+
+0.34
+
+0.19
+
+-0.16
+
+0.76
+
+0.61
+
+0.83
+
+1.00
+
+2
+
+Correlation
+Correlations
+
+Correlation
+
+For our SLQ-based eigenvalue density estimator (SD-SLQ), we use 500 Lanczos
+0.4 runs of 100 steps
+each
+via
+random
+Rademacher
+initializations
+and
+full
+reorthogonalization.
+The
+expectation
+is estimated
+RDS Sharpness 0.67 0.54 0.66 1.00 0.30 0.20 -0.16
+0
+using a separate minibatch per Lanczos run, followed by Gaussian quadrature 0.2
+and kernel smoothing.
+integrating
+the estimated spectral density and the eigenvalue-weighted
+-0.21 then
+0.50 compute
+0.30 0.30 SD
+1.00by 0.83
+0.76
+SD We
+0
+0.2
+0.4
+spectral density using the trapezoidal rule.
+τ
+-0.5
+Loss Gap -0.36 0.66 0.32 0.20 0.83 1.00 0.83
+Fig. 2 shows correlations between various gen1
+eralization measures and the empirical gener- PH-Dim-k " k
+Gen-Gap -0.40 0.34 0.19 -0.16 0.76 0.83 1.00
+0.8
+alization and loss gaps. Both the Euclidean
+-1
+PH-Dim-;
+0.6
+and
+data-dependent
+PH-Dims
+fail
+to
+capture
+im " k 2 ! ; n e s s S D G a p G a p
+D
+k
+E !k"k
+p
+,
+s
+the
+generalization
+behaviour.
+In
+addition,
+both
+n
+r
+0.4
+s
+E h
+PH , !
+Ge
+Lo
+S
+E
+Euclidean
+and
+data-dependent
+E
+show
+only
+S
+α
+E !;
+0.2
+RD
+weak positive
+correlation with the general0
+RDS-Sharpness
+ization gap. These results suggest that the
+-0.2
+SD
+trajectory-based topological indices may fail
+to accurately quantify generalization when net-0.4
+SD-SLQ
+works operate at the edge of stability regime,
+-0.6
+Loss gap
+b S (w) has singular values
+where I − η∇2 R
+-0.8
+Gen Gap
+larger than 1, i.e., not contractive on average.
+-1
+The top RDS-Sharpness λ1 alone also shows a
+;
+;
+p
+ss
+k
+k
+ap
+SD
+!
+LQ
+ga
+mne
+k"
+k"
+-S
+ss
+Di
+nG
+rp
+E
+!
+e
+o
+a
+mD
+i
+h
+L
+G
+S
+weak negative correlation, suggesting that the
+PH
+E
+-D
+S -S
+PH
+RD
+largest SV alone is not indicative of generalization in this setting. In contrast, both SD and the
+Figure 2: Correlations between various generalization
+approximate SD-SLQ show higher correlations indices and the empirical generalization gap on our small 3with the gap. The full Hessian-spectrum SD layer MLP trained on MNIST dataset. The region indicated
+achieves the strongest result indicating that SD in green shows that our proposed Sharpness Dimension
+better quantifies generalization in this edge of (SD) better predicts the generalization and loss gaps.
+1
+stability regime.
+2
+
+,
+
+,
+
+0.10
+
+0.64
+
+0.67
+
+-0.21
+
+-0.36
+
+-0.40
+
+Correlation
+
+Correlations
+
+Generalization in larger 5-layer MLPs. To evaluate
+performance
+on 0.54
+larger 0.50
+networks,
+1.00 0.74
+0.66 we
+0.34consider a 5-layer
+E, ! k " k2 0.10
+0.5
+MLP on MNIST with a width of 200, corresponding
+to
+0.66 We
+0.30
+0.32 the
+0.19
+E, ! ; 0.64
+278,8000.74 1.00
+parameters.
+follow
+same training setup
+as the 3-layer MLP above and use the same 5 × 5 (η, b)
+0.67 0.54 0.66 grid,
+1.00 with
+0.30 0.20
+-0.16 trained
+RDS Sharpness hyperparameter
+0
+networks
+for 100
+epochs. Here, we use the same SLQ setup to estimate
+0.50 0.30
+0.30 with
+1.00 the
+0.83
+0.76 of Lanczos runs
+SD -0.21
+eigenvalue
+densities,
+number
+varying with minibatch size, corresponding-0.5
+to two train-0.36
+0.66 We
+0.32 compute
+0.20 0.83
+0.83
+Loss Gap ing
+epochs.
+both1.00
+the SLQ-based
+histogram
+and the Gaussian kernel-smoothed estimate, denoted
+0.34 0.19 -0.16 0.76 0.83 1.00
+Gen-Gap as-0.40
+SD-SLQ
+and SD-KDE, respectively. We cannot use
+-1
+the exact SVD, and hence do not report SD.
+
+1
+
+Ψ = (ΨLR + ΨBS )/2
+
+PH-Dim 1.00
+
+PH-Dim-Fwd
+PH-Dim-Bwd
+Eω → ↑ · ↑2
+<latexit sha1_base64="6HPMTAdM1ht/6PUPsTkr+tNBdZE=">AAAB8XicbVBNS8NAEJ3Ur1q/qh69BIvgpSXpoXosKtJjBfuBbSibzaZdursJuxulhP4LLx4U8eq/8ea/cdvmoK0PBh7vzTAzz48ZVdpxvq3c2vrG5lZ+u7Czu7d/UDw8aqsokZi0cMQi2fWRIowK0tJUM9KNJUHcZ6Tjj69nfueRSEUjca8nMfE4GgoaUoy0kR6ajfIN5eXbp2BQLDkVZw57lbgZKUGG5qD41Q8inHAiNGZIqZ7rxNpLkdQUMzIt9BNFYoTHaEh6hgrEifLS+cVT+8wogR1G0pTQ9lz9PZEirtSE+6aTIz1Sy95M/M/rJTq89FIq4kQTgReLwoTZOrJn79sBlQRrNjEEYUnNrTYeIYmwNiEVTAju8surpF2tuLVK7a5aql9lceThBE7hHFy4gDo0oAktwCDgGV7hzVLWi/VufSxac1Y2cwx/YH3+AF1TkBQ=</latexit>
+
+<latexit sha1_base64="w9u+zszRXhiIdyKn8pRidoNtTsM=">AAAB8XicbVBNT8JAEJ3iF+IX6tFLIzHxAmk5oEeCHjhiIh8RGrLdbmHD7rbZ3WpIw7/w4kFjvPpvvPlvXKAHBV8yyct7M5mZ58eMKu0431ZuY3Nreye/W9jbPzg8Kh6fdFSUSEzaOGKR7PlIEUYFaWuqGenFkiDuM9L1Jzdzv/tIpKKRuNfTmHgcjQQNKUbaSA+tZvmW8nLjKRgWS07FWcBeJ25GSpChNSx+DYIIJ5wIjRlSqu86sfZSJDXFjMwKg0SRGOEJGpG+oQJxorx0cfHMvjBKYIeRNCW0vVB/T6SIKzXlvunkSI/VqjcX//P6iQ6vvZSKONFE4OWiMGG2juz5+3ZAJcGaTQ1BWFJzq43HSCKsTUgFE4K7+vI66VQrbq1Su6uW6o0sjjycwTlcggtXUIcmtKANGAQ8wyu8Wcp6sd6tj2VrzspmTuEPrM8fVzuQEA==</latexit>
+
+0.8
+
+<latexit sha1_base64="Wd73P3pdm+xv4RsGhDOhJyONqCU=">AAACAXicbVDLSsNAFJ3UV62vqBvBTbAV3FiSLqrLogguK9gHNCFMJpN26GQmzEyEktaNv+LGhSJu/Qt3/o3TNgttPXDhcM693HtPkFAilW1/G4WV1bX1jeJmaWt7Z3fP3D9oS54KhFuIUy66AZSYEoZbiiiKu4nAMA4o7gTD66nfecBCEs7u1SjBXgz7jEQEQaUl3zyq3PiZC2kygJNzd+yikCt37Ncqvlm2q/YM1jJxclIGOZq++eWGHKUxZgpRKGXPsRPlZVAogiielNxU4gSiIezjnqYMxlh62eyDiXWqldCKuNDFlDVTf09kMJZyFAe6M4ZqIBe9qfif10tVdOllhCWpwgzNF0UptRS3pnFYIREYKTrSBCJB9K0WGkABkdKhlXQIzuLLy6Rdqzr1av2uVm5c5XEUwTE4AWfAARegAW5BE7QAAo/gGbyCN+PJeDHejY95a8HIZw7BHxifP55All4=</latexit>
+
+Eω → ω
+<latexit sha1_base64="9j9EBwMBAerIIK2CDwdBIyp/cyo=">AAAB+nicbVDLSsNAFJ3UV62vVJduBlvBjSXporosiuCygn1AE8JkOm2GTmbCzEQpsZ/ixoUibv0Sd/6N0zYLbT1w4XDOvdx7T5gwqrTjfFuFtfWNza3idmlnd2//wC4fdpRIJSZtLJiQvRApwignbU01I71EEhSHjHTD8fXM7z4Qqajg93qSED9GI06HFCNtpMAuV2+CzEMsidD03JORqAZ2xak5c8BV4uakAnK0AvvLGwicxoRrzJBSfddJtJ8hqSlmZFryUkUShMdoRPqGchQT5Wfz06fw1CgDOBTSFNdwrv6eyFCs1CQOTWeMdKSWvZn4n9dP9fDSzyhPUk04XiwapgxqAWc5wAGVBGs2MQRhSc2tEEdIIqxNWiUTgrv88irp1Gtuo9a4q1eaV3kcRXAMTsAZcMEFaIJb0AJtgMEjeAav4M16sl6sd+tj0Vqw8pkj8AfW5w9nnJN2</latexit>
+
+SD-KDE
+SD-SLQ
+
+0.6
+0.4
+0.2
+0
+
+0.2
+
+0.4
+
+0.6
+
+τ
+
+Figure 3: Kendall coefficients and their averim " k 2 ! ; n e s s S D G a p G a p
+k
+-D various
+p
+s
+For
+complexity
+measures,
+H
+E , har
+!
+en Fig. 3 indicates that age granulated variant for the same 5-layer
+os
+P
+G
+L
+,
+S
+E
+backward
+PH-Dim,
+forward Eα ’s, our SD-SLQ and SD- MLP trained using various batch sizes and
+S
+RD similar average GKC values, with backKDE achieve
+learning rates. Our estimate further uses the
+ward PH-Dim performing best and SD-SLQ following SLQ approximation and its density estimatclosely. Yet, when comparing Kendall τ values, SD- ing variant, SD-KDE.
+SLQ outperforms all other indicators. Overall, when
+learning rates and batch sizes are grouped separately, the indicators perform similarly. However, when
+the full hyperparameter grid is considered, our dimension most accurately captures generalization.
+
+Studying grokking. Next, we study the phenomenon of grokking, delayed and sudden generalization Power et al. (2022); Nanda et al. (2023); Prieto et al. (2025) through our EoS framework. We
+
+10
+
+0.6
+
+Normalized metric value
+
+Normalized metric value
+
+E,
+Tr(H)
+Sharpness
+RDS-Sharpness
+SD
+Test Acc.
+
+0.5
+
+0
+0.5
+
+1
+
+1.5
+
+Epoch
+
+E,
+Tr(H)
+Sharpness
+RDS-Sharp.
+SD
+Gen. Gap
+
+2 = 0:15;
+WD=
+= 3e2e
+! 4! 3
+2 = 0:15; W D = 3e !24= 0:15; WD = 2e ! 4 2 = 0:25;
+WD
+
+2 = 0:15; W D = 2e ! 4
+
+1
+
+2
+#104
+
+0.5
+
+E,
+Tr(H)
+Sharpness
+RDS-Sharpness
+SD
+Test Acc.
+
+0.5
+
+0
+1.5 0.5
+
+1
+
+Epoch
+
+2 = 0:25; WD =22e=
+! 30:2; W D2 = 0:2;2eWD!=32e ! 3
+
+1
+
+12
+
+Epoch
+#104
+
+1.50.5
+
+2
+
+#104
+
+0.5 1
+
+1
+
+Epoch
+Epoch
+
+1.5
+1.5
+
+2
+
+0.5 2
+
+10.5 1.5
+
+12 0.5
+
+4
+
+Epoch
+
+#104 Epoch
+
+#104 #10
+
+11.5
+
+1.5
+
+22
+
+4
+Epoch #10
+#104 1
+
+1.00
+
+1.00
+
+0.93
+
+0.89
+
+1.00
+
+0.64
+
+1.00
+
+0.99
+
+0.96
+
+0.75 E,0.99
+0.870.93 0.89 1.00
+1.000.64 0.481.00 0.99
+0.67 0.96 0.63
+1.00.63 0.78
+0.940.69 0.901.00 0.83
+0.850.85
+1.00 1.00
+0.75 0.990.78
+0.87 0.69
+1.00 0.48 0.67
+0.94 0.90.88
+0.83 0.88
+
+1.00
+
+1.00
+
+0.93
+
+0.89
+
+1.00
+
+0.64
+
+0.99
+
+1.00
+
+0.96
+
+0.75
+0.880.93 0.89 1.00
+0.480.64 1.000.99 1.00
+0.66 0.96 0.52
+0.94
+1.000.41 0.930.94 0.83
+0.890.89
+1.00 1.00
+0.75 0.990.46
+0.88 0.41
+0.48 1.00 0.66
+0.52 0.46
+1.00 0.930.93
+0.83 0.93
+Tr(H)0.99
+
+0.93
+
+0.93
+
+1.00
+
+0.85
+
+0.92
+
+0.59
+
+0.96
+
+0.96
+
+1.00
+
+0.74
+0.861.00 0.85 0.92
+0.670.59 0.660.96 0.96
+1.00 1.00 0.53
+0.90.53 0.67
+0.930.53 1.000.90 0.85
+0.860.86
+0.93 0.93
+0.74 0.960.67
+0.86 0.53
+0.67 0.66 1.00
+0.93 1.00.88
+0.85 0.88
+Sharpness0.96
+
+0.89
+
+0.89
+
+0.85
+
+1.00
+
+0.89
+
+0.65
+
+0.75
+
+0.75
+
+0.74RDS-Sharp.
+1.00 0.75
+0.670.85 1.00 0.89
+0.630.65 0.520.75 0.75
+0.53 0.74 1.00
+0.83
+0.830.63 0.850.83 1.00
+0.800.80
+0.89 0.89
+1.00 0.750.59
+0.67 0.63
+0.63 0.52 0.53
+1.00 0.59
+0.83 0.850.83
+1.00 0.83
+
+1.00
+
+1.00
+
+0.92
+
+0.89
+
+1.00
+
+0.63
+
+0.99
+
+0.99
+
+0.96
+
+0.75 SD1.00
+0.880.92 0.89 1.00
+0.780.63 0.460.99 0.99
+0.67 0.96 0.59
+0.88
+0.930.77 0.880.88 0.83
+0.880.88
+1.00 1.00
+0.75 1.001.00
+0.88 0.77
+0.78 0.46 0.67
+0.59 1.00
+0.93 0.881.00
+0.83 1.00
+
+0.64
+
+0.64
+
+0.59
+
+0.65
+
+0.63
+
+1.00
+
+0.87
+
+0.88
+
+0.86
+
+0.67Gap0.88
+1.00.59 0.65 0.63
+0.691.00 0.410.87 0.88
+0.53 0.86 0.63
+0.85
+0.891.00 0.860.85 0.80
+1.001.00
+0.64 0.64
+0.67 0.880.77
+1.00 1.00
+0.69 0.41 0.53
+0.63 0.77
+0.89 0.860.88
+0.80 0.88
+Gen.
+
+.
+E , r(H ) ness arp SD Gap
+T ar p S h
+n.
+h
+S DS
+Ge
+R
+
+.
+)
+)ps .
+) s s ..
+p ) s . D ) ap ess E , Hp). ess Dp. Dap ap
+E , r(H ) ness arp SDE , (G
+H a es p DE , ap H E , eHs es pp D Dap a E , H esE ,p H
+S G
+r n ar S . GTr( rpTrn( rpnhahrar S S. G . G Tr( rpn harTr(S . Grpn haTrr( rpn Shar . G
+T ar p S h
+n.T harp -Sh
+n
+n en
+na
+a h-aS -S
+a S
+a S e n en.
+S
+e
+e
+e
+h
+h
+S DS
+G S S
+S DSS S
+SGeh DSG
+GG
+Sh S Sh S-G
+G
+D
+D
+D
+D
+R
+R
+R
+R
+
+R
+
+R
+
+1
+
+0.5
+
+0
+
+0
+
+R
+
+Figure 4: Grokking analysis for different learning rates (η), weight decay (W D) and seeds across
+two architectures: (top row) 2-layer MLP. (second row) 2-layer MLP. Note that the suddenness of
+the grokking behavior is best captured in the complexity measures we introduce: RDS-Sharpness and
+Sharpness Dimension (SD).
+
+consider the task of arithmetic modulo 97, a family of supervised learning tasks where two one-hot
+encoded inputs representing integers a, b < p are used to predict the target y = a ∗ b mod p. ∗ is a
+binary operation and p is a prime. In all our experiments, we use addition as the binary operation.
+The dataset size is defined as the percentage of the 972 possible input pairs used for training, with
+the remainder used for testing as in Nanda et al. (2023) and Power et al. (2022). We use a 40%/60%
+train/test split.
+To induce and observe grokking, we use a 2-layer MLP with 32 hidden features and GELU activation,
+trained using SGD with momentum and WD for 20k epochs. In all evaluations presented in Fig. 4,
+training acc. exceeds 90% and reaches 100% early, while test acc. continues to increase, a.k.a.
+grok. We report complexity measures for 100 uniformly spaced checkpoints as well as their intracorrelations and correlations with the Gen. Gap in Fig. 4. In App. D, we also consider a 3-layer MLP
+with 32 hidden features and ReLU activation, trained with SGD using only WD.
+Fig. 4 shows that correlations our SD achieves with the generalization gap are comparable to or
+higher than those of Eα , tr(H), and Sharpness, with our other measure, RDS sharpness, performing
+worse than SD for all the cases but the first. We observe that the Sharpness and tr(H) are less
+stable for certain hyperparameter choices, performing worse in one of the configurations. Eα shows
+stable correlations when using the training trajectories, whereas SD performs similarly or better
+even with only the model weights from the current epoch. These results indicate that SD captures
+information about training dynamics and the underlying attractor without requiring access to trajectory
+information like Eα . In addition, during the grokking phase transition occurs Rubin et al. (2024)
+simultaneously with changes in the structure of the Hessian spectrum.
+Generalization in modern transformers: the case of GPT-2. To assess whether the same behavior
+persists at a larger scale, we consider GPT-2 Radford et al. (2019) (124M parameters) trained from
+scratch on WikiText-2 Merity et al. (2016). We evaluate SGD and SGD with momentum on a 5 × 5
+hyperparameter grid over learning rate and effective batch size, and AdamW Loshchilov and Hutter
+(2019) on a 4 × 3 × 3 hyperparameter grid over learning rate, batch size, and weight decay. We report
+the correlations between the resulting complexity measures and the empirical loss gap and 0–1 loss
+gap. For this experiment we additionally report SD-PS, an equal-mass pseudo-spectrum estimator
+computed from the smoothed SLQ density; see App. C for details. Fig. 5 indicates that the qualitative
+conclusions remain consistent with our smaller-scale experiments, with the strongest distinction
+appearing for AdamW. In particular, classical sharpness does not provide a reliable indicator of
+generalization, and under AdamW, it shows a strong negative correlation with the loss gaps. By
+contrast, the RDS-based quantities remain informative overall, with the SD variants, especially the
+smoothed estimates SD-KDE and SD-PS, showing the most consistent positive correlations across
+optimizers. PH-Dim and Eα also provide useful signals in some settings, but their behavior is less
+uniform. Overall, these results suggest that, in this transformer setting as well, generalization is better
+captured by SD and related RDS-based quantities than by classical sharpness alone.
+11
+
+Correlation Matrices Corresponding to GPT2 Trained on WikiText2-Dataset
+SGD: 5 LR x 5 BS
+
+SGD w/ Momentum: 5 LR x 5 BS
+
+AdamW: 4 LR x 3 BS x 3 WD
+
+Topological
+Complexity
+Measures
+
+Our
+Complexity
+Measures
+
+Losses
+
+Figure 5: Correlation Matrices Corresponding to GPT-2 Trained on WikiText2-Dataset for
+different learning rates (LR), batch sizes (BS) and weight decay values (WD), across three different
+optimizers: SGD, SGD with momentum and AdamW.
+
+6
+
+Conclusion
+
+Training neural networks at the edge of numerical stability challenges classical generalization theories
+that assume convergence to a single solution. In this work, we show that this regime is instead
+governed by the geometry of a random pullback attractor induced by stochastic optimization
+viewed as a random dynamical system. Building on this, we introduce the Sharpness Dimension
+(SD), a Lyapunov-inspired spectral complexity measure that captures the effective dimensionality
+of expanding directions on the attractor. We prove a worst-case generalization bound over the
+entire attractor, establishing SD as a principled quantity linking chaotic optimization dynamics to
+generalization. Empirically, SD reliably predicts generalization gaps across optimization regimes,
+correlates with grokking phase transitions, and remains computable at scale via stochastic Lanczos
+quadrature.
+Limitations & future work. Currently, we are required to estimate the full Hessian spectrum, which,
+despite scalable approximations, remains computationally demanding for very large models. Future
+work involves tightening the theory under weaker regularity assumptions, extending it to adaptive
+optimizers and large-scale architectures such as transformers Zhang et al. (2024).
+Acknowledgments. The authors are grateful for the support of the Excellence Strategy of local and
+state governments. T. B. was supported by a UKRI Future Leaders Fellowship (MR/Y018818/1). The
+authors acknowledge support from the UK AI Research Resource (AIRR Isambard AI) through grant
+0251-4584-0945-1 - TopoFound. U.Ş. is partially supported by the French government under the
+management of Agence Nationale de la Recherche as part of the “Investissements d’avenir” program,
+reference ANR-19-P3IA-0001 (PRAIRIE 3IA Institute). M.T and U.Ş. are partially supported by the
+European Research Council Starting Grant DYNASTY – 101039676.
+
+Bibliography
+Ahn, K., Bubeck, S., Chewi, S., Lee, Y. T., Suarez, F., and Zhang, Y. (2023a). Learning threshold
+neurons via edge of stability. Advances in Neural Information Processing Systems, 36:19540–
+19569.
+Ahn, K., Jadbabaie, A., and Sra, S. (2023b). How to escape sharp minima with random perturbations.
+arXiv preprint arXiv:2305.15659.
+Ahn, K., Zhang, J., and Sra, S. (2022). Understanding the unstable convergence of gradient descent.
+In International conference on machine learning. PMLR.
+Andreeva, R., Dupuis, B., Sarkar, R., Birdal, T., and Simsekli, U. (2024). Topological generalization
+bounds for discrete-time stochastic optimization algorithms. Advances in Neural Information
+Processing Systems, 37.
+Andreyev, A. and Beneventano, P. (2024). Edge of stochastic stability: Revisiting the edge of stability
+for sgd. arXiv preprint arXiv:2412.20553.
+12
+
+Arnold, L. (2006). Random dynamical systems. In Dynamical Systems: Lectures Given at the 2nd
+Session of the Centro Internazionale Matematico Estivo (CIME) held in Montecatini Terme, Italy,
+June 13–22, 1994. Springer.
+Arora, S., Li, Z., and Panigrahi, A. (2022). Understanding gradient descent on the edge of stability in
+deep learning. In International Conference on Machine Learning, pages 948–1024. PMLR.
+Birdal, T., Lou, A., Guibas, L. J., and Simsekli, U. (2021). Intrinsic dimension, persistent homology
+and generalization in neural networks. Advances in Neural Information Processing Systems,
+34:6776–6789.
+Bogachev, V. (2007). Measure theory. Springer.
+Cai, Y., Huang, H., Wen, H., Liu, D., Ma, Y., and Lyu, K. (2026). Does LLM pre-training typically
+occur at the edge of stability? In Workshop on Scientific Methods for Understanding Deep
+Learning.
+Camuto, A., Deligiannidis, G., Erdogdu, M. A., Gurbuzbalaban, M., Simsekli, U., and Zhu, L. (2021).
+Fractal structure and generalization properties of stochastic optimization algorithms. Advances in
+neural information processing systems, 34:18774–18788.
+Chaudhari, P., Choromanska, A., Soatto, S., LeCun, Y., Baldassi, C., Borgs, C., Chayes, J., Sagun,
+L., and Zecchina, R. (2019). Entropy-sgd: Biasing gradient descent into wide valleys. Journal of
+Statistical Mechanics: Theory and Experiment, 2019(12):124018.
+Chemnitz, D. and Engel, M. (2025). Characterizing dynamical stability of stochastic gradient descent
+in overparameterized learning. Journal of Machine Learning Research, 26(134):1–46.
+Chen, L. and Bruna, J. (2023). Beyond the edge of stability via two-step gradient updates. In
+International Conference on Machine Learning, pages 4330–4391. PMLR.
+Clerico, E., Farghly, T., Deligiannidis, G., Guedj, B., and Doucet, A. (2022). Generalisation under
+gradient descent via deterministic pac-bayes. arXiv preprint arXiv:2209.02525.
+Cohen, J. M., Kaur, S., Li, Y., Kolter, J. Z., and Talwalkar, A. (2021). Gradient descent on neural
+networks typically occurs at the edge of stability. arXiv preprint arXiv:2103.00065.
+Crauel, H., Debussche, A., and Flandoli, F. (1997). Random attractors. Journal of Dynamics and
+Differential Equations, 9(2):307–341.
+Crauel, H. and Flandoli, F. (1994). Attractors for random dynamical systems. Probability Theory
+and Related Fields, 100(3):365–393.
+Damian, A., Nichani, E., and Lee, J. D. (2022). Self-stabilization: The implicit bias of gradient
+descent at the edge of stability. arXiv preprint arXiv:2209.15594.
+Ding, L., Drusvyatskiy, D., Fazel, M., and Harchaoui, Z. (2024). Flat minima generalize for low-rank
+matrix recovery. Information and Inference: A Journal of the IMA.
+Dinh, L., Pascanu, R., Bengio, S., and Bengio, Y. (2017). Sharp minima can generalize for deep nets.
+In International Conference on Machine Learning, pages 1019–1028. PMLR.
+Dupuis, B., Deligiannidis, G., and Simsekli, U. (2023). Generalization bounds using data-dependent
+fractal dimensions. In International conference on machine learning, pages 8922–8968. PMLR.
+Dupuis, B., Viallard, P., Deligiannidis, G., and Simsekli, U. (2024). Uniform generalization bounds
+on data-dependent hypothesis sets via PAC-bayesian theory on random sets. Journal of Machine
+Learning Research, 25(409).
+Feng, D.-J. and Simon, K. (2022). Dimension estimates for iterated function systems and repellers.
+part ii. Ergodic Theory and Dynamical Systems, 42(11):3357–3392.
+Foret, P., Kleiner, A., Mobahi, H., and Neyshabur, B. (2020). Sharpness-aware minimization for
+efficiently improving generalization. arXiv preprint arXiv:2010.01412.
+13
+
+Foster, D. J., Greenberg, S., Kale, S., Luo, H., Mohri, M., and Sridharan, K. (2019). Hypothesis set
+stability and generalization. Advances in Neural Information Processing Systems, 32.
+Gatmiry, K., Li, Z., Ma, T., Reddi, S., Jegelka, S., and Chuang, C.-Y. (2023). What is the inductive
+bias of flatness regularization? a study of deep matrix factorization models. Advances in Neural
+Information Processing Systems, 36:28040–28052.
+Ghorbani, B., Krishnan, S., and Xiao, Y. (2019). An investigation into neural net optimization via
+hessian eigenvalue density. In International Conference on Machine Learning, pages 2232–2241.
+PMLR.
+Ghosh, A., Cong, B., Yokota, R., Ravishankar, S., Wang, R., Tao, M., Khan, M. E., and Möllenhoff,
+T. (2025). Variational learning finds flatter solutions at the edge of stability. arXiv preprint
+arXiv:2506.12903.
+Golub, G. H. and Welsch, J. H. (1969). Calculation of gauss quadrature rules. Mathematics of
+computation, 23.
+Haddouche, M., Viallard, P., Simsekli, U., and Guedj, B. (2024). A pac-bayesian link between
+generalisation and flat minima. arXiv preprint arXiv:2402.08508.
+Halko, N., Martinsson, P.-G., and Tropp, J. A. (2011). Finding structure with randomness: Probabilistic algorithms for constructing approximate matrix decompositions. SIAM review, 53(2):217–288.
+Hochreiter, S. and Schmidhuber, J. (1994). Simplifying neural nets by discovering flat minima.
+Advances in neural information processing systems, 7.
+Hodgkinson, L., Simsekli, U., Khanna, R., and Mahoney, M. (2022). Generalization bounds using
+lower tail exponents in stochastic optimizers. In International Conference on Machine Learning,
+pages 8774–8795. PMLR.
+Hunt, B. R. (1996). Maximum local lyapunov dimension bounds the box dimension of chaotic
+attractors. Nonlinearity, 9(4):845.
+Izmailov, P., Podoprikhin, D., Garipov, T., Vetrov, D., and Wilson, A. G. (2018). Averaging weights
+leads to wider optima and better generalization. arXiv preprint arXiv:1803.05407.
+Jastrzebski, S., Szymczak, M., Fort, S., Arpit, D., Tabor, J., Cho, K., and Geras, K. (2020). The breakeven point on optimization trajectories of deep neural networks. arXiv preprint arXiv:2002.09572.
+Jiang, Y., Neyshabur, B., Mobahi, H., Krishnan, D., and Bengio, S. (2019a). Fantastic generalization
+measures and where to find them. arXiv preprint arXiv:1912.02178.
+Jiang, Y., Neyshabur, B., Mobahi, H., Krishnan, D., and Bengio, S. (2019b). Fantastic Generalization
+Measures and Where to Find Them. ICLR 2020.
+Kaddour, J., Liu, L., Silva, R., and Kusner, M. J. (2022). When do flat minima optimizers work?
+Advances in Neural Information Processing Systems, 35:16577–16595.
+Kaplan, J. L. and Yorke, J. A. (2006). Chaotic behavior of multidimensional difference equations. In
+Functional Differential Equations and Approximation of Fixed Points: Proceedings, Bonn, July
+1978. Springer.
+Kaur, S., Cohen, J., and Lipton, Z. C. (2023). On the maximum hessian eigenvalue and generalization.
+In Proceedings on, pages 51–65. PMLR.
+Kendall, M. G. (1938). A new reasure of rank correlation. Biometrika.
+Keskar, N. S., Mudigere, D., Nocedal, J., Smelyanskiy, M., and Tang, P. T. P. (2016). On large-batch
+training for deep learning: Generalization gap and sharp minima. arXiv preprint arXiv:1609.04836.
+Lanczos, C. (1950). An iteration method for the solution of the eigenvalue problem of linear
+differential and integral operators. Journal of research of the National Bureau of Standards,
+45(4):255–282.
+14
+
+Lin, L., Saad, Y., and Yang, C. (2016). Approximating spectral densities of large matrices. SIAM
+review, 58(1):34–65.
+Liu, H., Xie, S. M., Li, Z., and Ma, T. (2023). Same pre-training loss, better downstream: Implicit
+bias matters for language models. In International Conference on Machine Learning, pages
+22188–22214. PMLR.
+Loshchilov, I. and Hutter, F. (2019). Decoupled weight decay regularization.
+Ly, A. and Gong, P. (2025). Optimization on multifractal loss landscapes explains a diverse range of
+geometrical and dynamical properties of deep learning. Nature Communications, 16(1):3252.
+Ma, C. and Ying, L. (2021). On linear stability of sgd and input-smoothness of neural networks.
+Advances in Neural Information Processing Systems, 34:16805–16817.
+Merity, S., Xiong, C., Bradbury, J., and Socher, R. (2016). Pointer sentinel mixture models.
+Molchanov, I. (2017). Theory of Random Sets. Number 87 in Probability Theory and Stochastic
+Modeling. Springer, second edition edition.
+Mulayoff, R. and Michaeli, T. (2020). Unique properties of flat minima in deep networks. In
+International conference on machine learning, pages 7108–7118. PMLR.
+Nanda, N., Chan, L., Lieberum, T., Smith, J., and Steinhardt, J. (2023). Progress measures for
+grokking via mechanistic interpretability. In The Eleventh International Conference on Learning
+Representations.
+Neyshabur, B., Bhojanapalli, S., McAllester, D., and Srebro, N. (2017). Exploring generalization in
+deep learning. Advances in neural information processing systems, 30.
+Nguyen, T. H., Simsekli, U., Gurbuzbalaban, M., and Richard, G. (2019). First exit time analysis
+of stochastic gradient descent under heavy-tailed gradient noise. Advances in neural information
+processing systems, 32.
+Papyan, V. (2018). The full spectrum of deepnet hessians at scale: Dynamics with sgd training and
+sample size. arXiv preprint arXiv:1811.07062.
+Posch, H. A., Hoover, W. G., and Vesely, F. J. (1986). Canonical dynamics of the nosé oscillator:
+Stability, order, and chaos. Physical review A, 33(6):4253.
+Power, A., Burda, Y., Edwards, H., Babuschkin, I., and Misra, V. (2022). Grokking: Generalization
+beyond overfitting on small algorithmic datasets. arXiv preprint arXiv:2201.02177.
+Prieto, L., Barsbey, M., Mediano, P. A. M., and Birdal, T. (2025). Grokking at the edge of numerical
+stability. In The Thirteenth International Conference on Learning Representations.
+Radford, A., Wu, J., Child, R., Luan, D., Amodei, D., and Sutskever, I. (2019). Language models are
+unsupervised multitask learners.
+Rubin, N., Seroussi, I., and Ringel, Z. (2024). Grokking as a first order phase transition in two layer
+networks. In The Twelfth International Conference on Learning Representations.
+Sagun, L., Evci, U., Guney, V. U., Dauphin, Y., and Bottou, L. (2017). Empirical analysis of the
+hessian of over-parametrized neural networks. arXiv preprint arXiv:1706.04454.
+Sasdelli, M., Ajanthan, T., Chin, T.-J., and Carneiro, G. (2021). A chaos theory approach to understand
+neural network optimization. In 2021 Digital Image Computing: Techniques and Applications
+(DICTA), pages 1–10. IEEE.
+Simsekli, U., Sagun, L., and Gurbuzbalaban, M. (2019). A tail-index analysis of stochastic gradient
+noise in deep neural networks. In International Conference on Machine Learning, pages 5827–
+5837. PMLR.
+Simsekli, U., Sener, O., Deligiannidis, G., and Erdogdu, M. A. (2020). Hausdorff dimension, heavy
+tails, and generalization in neural networks. Advances in Neural Information Processing Systems,
+33:5138–5151.
+15
+
+Singh Kalra, D., He, T., and Barkeshli, M. (2023). Universal sharpness dynamics in neural network
+training: Fixed point analysis, edge of stability, and route to chaos. arXiv e-prints, pages arXiv–
+2311.
+Tsuzuku, Y., Sato, I., and Sugiyama, M. (2020). Normalized flat minima: Exploring scale invariant
+definition of flat minima for neural networks using pac-bayesian analysis. In International
+Conference on Machine Learning, pages 9636–9647. PMLR.
+Tuci, M., Bastian, L., Dupuis, B., Navab, N., Birdal, T., and Şimşekli, U. (2025). Mutual information
+free topological generalization bounds via stability. arXiv preprint arXiv:2507.06775.
+Van Erven, T. and Harremos, P. (2014). Rényi divergence and kullback-leibler divergence. IEEE
+Transactions on Information Theory, 60(7):3797–3820.
+Wang, Z., Li, Z., and Li, J. (2022). Analyzing sharpness along gd trajectory: Progressive sharpening
+and edge of stability. Advances in Neural Information Processing Systems, 35:9983–9994.
+Wen, K., Li, Z., and Ma, T. (2023). Sharpness minimization algorithms do not only minimize
+sharpness to achieve better generalization. Advances in Neural Information Processing Systems,
+36:1024–1035.
+Wu, D., Xia, S.-T., and Wang, Y. (2020). Adversarial weight perturbation helps robust generalization.
+Advances in neural information processing systems, 33:2958–2969.
+Xing, C., Arpit, D., Tsirigotis, C., and Bengio, Y. (2018). A walk with sgd. arXiv preprint
+arXiv:1802.08770.
+Yao, Z., Gholami, A., Lei, Q., Keutzer, K., and Mahoney, M. W. (2018). Hessian-based analysis of
+large batch training and robustness to adversaries. Advances in Neural Information Processing
+Systems, 31.
+Yunis, D. (2017). The birkhoff ergodic theorem with applications. The University of Chicago.
+Disponıvel em.
+Zhang, Y., Chen, C., Ding, T., Li, Z., Sun, R., and Luo, Z. (2024). Why transformers need adam: A
+hessian perspective. Advances in neural information processing systems, 37:131786–131823.
+Zheng, Y., Zhang, R., and Mao, Y. (2021). Regularizing neural networks via adversarial model
+perturbation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 8156–8165.
+Zhu, X., Wang, Z., Wang, X., Zhou, M., and Ge, R. (2022). Understanding edge-of-stability training
+dynamics with a minimalist example. arXiv preprint arXiv:2210.03294.
+
+16
+
+Appendix
+We provide here the technical details and full proofs omitted from the main paper, along with
+supplementary experiments that further support our findings. The appendix is structured as follows:
+• Appendix A introduces additional background material from random dynamical systems, random
+attractors, and worst-case generalization bounds.
+• Appendix B presents the complete proofs of all theoretical results stated in the main text, as well
+as several supplementary theoretical developments.
+• Appendix C describes the experimental setups and implementation details required to reproduce
+our empirical results.
+• Appendix D We provide additional empirical results.
+
+A
+
+Theoretical Background
+
+This section provides the theorems and technical background necessary for our main results.
+
+A.1
+
+Random Attractor
+
+The notion of an attractor is one of the fundamental concepts in dynamical systems theory. While
+this concept has been central in the study of deterministic systems for several decades, its extension
+to stochastic systems is more subtle.
+In stochastic systems (like SGD), the "noise" never stops kicking the particle. Therefore, the attractor
+is likely not to be a single static point. Instead, it is a random set, a moving target that fluctuates in
+shape and position over time, driven by the specific realization of the noise. The theory of attractors
+has been thoroughly developed over the past decades (Crauel and Flandoli, 1994; Arnold, 2006).
+Unlike the autonomous deterministic case, Random Dynamical Systems (RDS) are inherently nonautonomous and exhibit multiple notions of attraction, such as pullback and forward attraction. All
+definitions rely on the concept of a compact, invariant, random set.
+Definition A.1 (Compact and Invariant Random Sets). Let ϕ be an RDS on a Polish space X. A
+mapping A : Ω → P(X) is called a compact random set if:
+1. Measurability: The indicator function ω 7→ 1A(ω) (x) is measurable for each fixed x ∈ X.
+2. Compactness: A(ω) is compact (i.e., closed and bounded) for P-almost every ω ∈ Ω.
+The set A is said to be an invariant compact random set if additionally it satisfies ϕ-Invariance:
+ϕ(t, ω, A(ω)) = A(θt ω),
+
+∀t ∈ T+ ,
+
+P-a.s.
+
+Definition A.2 (Modes of Random Attraction). Let (θ, ϕ) be an RDS on a Polish space X, and
+let A be an invariant compact random set according to Dfn. A.1. Let S be a collection of bounded
+subsets of X (e.g., bounded initializations). We denote dist(E, F ) := supx∈E inf y∈F d(x, y). A is
+called:
+1. A Random Pullback Attractor if for all D ∈ S:
+
+
+lim dist ϕ(t, θ−t ω)D, A(ω) = 0
+
+t→∞
+
+a.s.
+
+Intuition: This asks: "If I started training infinitely long ago (t → −∞) with noise θ−t ω,
+where would I be right now (t = 0)?"
+2. A Random Forward Attractor if for all D ∈ S:
+
+
+lim dist ϕ(t, ω)D, A(θt ω) = 0
+
+t→∞
+
+a.s.
+
+Intuition: This asks: "If I start training now (t = 0), where will I be in the distant future?"
+SGD Context: This describes the physical trajectory of a specific training run.
+17
+
+( a)
+
+(b)
+
+Figure 6: (a) Fractal Pullback Attractor at the Edge of Stability. Visualization of the random
+snapshot attractor A(ζ) generated by Stochastic Gradient Descent (SGD) on a non-linear function
+Q2
+L(x) = 12 ∥x∥2 − A i=1 cos(kxi ) (A = 2.0, k = 4.0). The system is evolved for T = 250 steps
+with a learning rate η = 0.15 placing the dynamics at the edge of stability. The figure illustrates the
+collapse of 6 × 105 particles onto a fractal skeleton under a shared noise realization ζ = {ξt }Tt=1 ,
+where ξt ∼ N (0, σ 2 I) with σ = 0.1. The intricate filaments emerge from the recursive stretching
+and folding of the state space, characteristic of chaotic synchronization in random dynamical systems
+(RDS). (b) 3D chaotic attractor of an RDS. Illustration of a chaotic random pullback attractor using
+a stochastic generalized Nosé-Hoover system Posch et al. (1986).
+3. A Weak (Point) Attractor if the convergence holds in probability rather than almost surely, (for
+singleton sets D = {y}).
+Fig. 6 complements our definitions and results with an example. Indeed in the main write up we
+focus on the notion of random pullback attractor.
+
+A.2
+
+Fractal Dimensions
+
+We start by introducing the notion of a covering, which plays a central role throughout this paper and
+is especially important in the proofs of our main results.
+Definition A.3 (Covering of a set). Let X ⊆ Rd be a set. A δ-cover of X is a family (Ui )i of sets
+with diameter at most δ such that
+[
+X⊆
+Ui .
+i
+
+If X is bounded, a δ-cover of minimal cardinality is called a minimal cover, and its cardinality is
+called the covering number, denoted by N (X, δ).
+Based on Dfn. A.3, we are now able to define the upper Minkowski dimension, which will later be
+bounded using our new notion of fractal dimension.
+Definition A.4 (Minkowski dimensions). Let X ⊂ Rd be a bounded set. The lower and upper
+Minkowski (or box) dimensions of X are defined as
+dimB (X) := lim inf
+δ→0
+
+log N (X, δ)
+,
+log(1/δ)
+
+dimB (X) := lim sup
+δ→0
+
+log N (X, δ)
+.
+log(1/δ)
+
+If the two quantities agree, the resulting limit is called the Minkowski dimension of X, written
+dimB (X).
+18
+
+A.3
+
+Data-dependent worst-case generalization bounds
+
+Before presenting the proofs of our main results, we state the following technical assumption, lemmata
+and preperation which are necessray to formulate our main result.
+Recent advances in topological generalization bounds rely on data-dependent worst-case generalization bounds, leveraging PAC-Bayesian theory on random sets Dupuis et al. (2024) or the
+stability-based framework of Tuci et al. (2025).
+Theorem A.1 (Egoroff’s theorem). Let (Ω, F, P) be a probability space, and let f and (fn )n∈N be
+measurable functions on Ω. Suppose that
+fn (x) −→ f (x) for almost all x ∈ Ω.
+
+Then, for any ε > 0, there exists a measurable set Ωε ∈ F such that
+P(Ωε ) ≥ 1 − ε,
+
+and the convergence of fn to f is uniform on Ωε .
+
+This theorem allows us to relate the notion of covering (see Dfn. A.3) to the Minkowski dimension
+(see Dfn. A.4). Similar ideas have been used in previous work (Simsekli et al., 2020; Dupuis et al.,
+2023, 2024).
+Corollary A.2 (Uniform control of covering numbers). Let (ΩU , FU , PU ) be the probability space
+supporting the random variable U , and let (Z, F) denote the data space. Assume that the random
+set WS,U is almost surely of finite diameter. Then, for any γ > 0, there exists a measurable set
+Ωγ ⊆ F ⊗n ⊗ FU with
+µ⊗n ⊗ PU (Ωγ ) ≥ 1 − γ,
+such that, on Ωγ , the following holds: there exists δn,γ > 0 for which, for all 0 < δ < δn,γ ,
+
+log N (WS,U , δ) ≤ 2 dimB (WS,U ) log 1δ .
+Proof. Let (ΩU , FU , PU ) denote the probability space supporting the auxiliary random variable U ,
+and let F denote the σ-algebra associated with the data space Z. Assume that the random set WS,U
+is almost surely of finite diameter.
+By definition of the upper Minkowski (box-counting) dimension, we have µ⊗n ⊗ PU -almost surely
+dimB (WS,U ) := lim sup
+δ→0
+
+where we define
+
+log N (WS,U , δ)
+= lim fδ (WS,U ),
+δ→0
+log(1/δ)
+
+log N (WS,U , r)
+.
+log(1/r)
+0<r<δ
+
+fδ (WS,U ) := sup
+
+Let (δk )k≥0 be a decreasing sequence of positive numbers in (0, 1) such that δk → 0, and fix γ > 0.
+By Egoroff’s theorem (see Bogachev, 2007), there exists a measurable set
+Ωγ ∈ F ⊗n ⊗ FU
+
+such that
+and such that the convergence
+
+µ⊗n ⊗ PU (Ωγ ) ≥ 1 − γ,
+fδk (WS,U ) −→ dimB (WS,U )
+
+is uniform on Ωγ .
+
+Consequently, there exists an index kγ,n ≥ 0 such that for all k ≥ kγ,n and all (S, U ) ∈ Ωγ ,
+fδk (WS,U ) ≤ 2 dimB (WS,U ).
+
+Therefore, for any 0 < δ < δk and any (S, U ) ∈ Ωγ , we obtain
+
+
+log N (WS,U , δ) ≤ 2 dimB (WS,U ) log 1δ ,
+
+which concludes the proof.
+
+19
+
+The framework of Dupuis et al. (2024) is based on information-theoretic quantities. In particular, we provide below a precise definition of the total mutual information term appearing in our
+main theoretical results; see (Van Erven and Harremos, 2014; Hodgkinson et al., 2022) for further
+background.
+Definition A.5 (Total mutual information). Let X and Y be two random elements defined on a
+probability space (Ω, F, P) (note that the codomains of X and Y may be distinct). We define the
+total mutual information between X and Y by
+I∞ (X, Y ) = log
+
+PX,Y (A)
+
+sup
+
+A∈AX,Y PX ⊗ PY (A)
+
+.
+
+Generalization Bounds via Mutual Information. Many studies have employed informationtheoretic techniques, particularly within the “fractal-based” literature (Simsekli et al., 2020; Birdal
+et al., 2021). A unifying perspective recently emerged with the PAC-Bayesian theory for random
+sets (Dupuis et al., 2024), which was recently employed by Andreeva et al. (2024) to establish
+generalization bounds based on novel topological complexity measures. Informally, all these bounds
+are of the following form7 :
+r
+
+C(WS,U ) + IT + log(1/ζ)
+b
+supw∈WS,U R(w) − RS (w) ≲
+,
+(14)
+n
+with probability at least 1 − ζ. The term IT is an information-theoretic (IT) term, typically the total
+mutual information between the dataset S and the set WS,U The aforementioned bounds differ in the
+choice of complexity measure C(WS,U ), but all include an IT term.
+By adapting Corollary 33 of Dupuis et al. (2024) to our framework, we derive the following Corollary
+Corollary A.3. Assume that ℓ(w, z) is L-Lipschitz in w, bounded, and that WS,U is almost surely
+bounded. Then there exists a constant C > 0 such that, for any λ, δ > 0, with probability at least
+1 − ζ under the joint law of (S,U), we have
+r
+
+
+I (W , S) + log ζ1
+B2
+b S (w) ≤ 2Lδ + 2B 2 log |N (WS,U , δ)| + ∞ S,U
+sup
+R(w) − R
++ Cλ
+n
+λ
+n
+w∈WS,U
+By combining Cor. A.2 and Cor. A.3 and applying a union bound, we can now state the following
+theorem, which serves as a key foundation for our subsequent analysis.
+Corollary A.4. Assume that the loss ℓ(w, z) is L-Lipschitz in w, bounded by B, and that the random
+set WS,U is almost surely of finite diameter. Then there exists a constant C > 0 such that, for any
+λ > 0, with probability at least 1 − ζ − γ under the joint law of (S, U ), there exists δn,γ > 0 such
+that for all 0 < δ < δn,γ ,
+s
+
+b S (w) ≤ 2Lδ + 2B 4 dimB (WS,U ) log(1/δ)
+sup R(w) − R
+n
+w∈WS,U
+I∞ (WS,U , S) + log(1/ζ) CλB 2
++
+. (15)
+λ
+n
+Remark A.1. The parameter δn appearing in Theorem A.6 deserves a brief comment. As can be
+seen from the proof, it quantifies the uniformity in n of the limit defining the upper box-counting
+dimension: if this convergence is uniform in n, then δ becomes independent of n. A similar parameter
+already arises in (Dupuis et al., 2023), and (Dupuis et al., 2024) shows that δ can indeed be taken
+independent of n under a suitable convergence assumption on the distributions of the random sets.
+We refer the reader to these works for further details.
++
+
+Generalization Bounds via Random Set Stability. A different perspective was taken by Tuci et al.
+(2025), who showed that various ’topological generalization’ bounds can be recovered within a novel
+stability framework. In our case, we make use of both frameworks. Before stating our main bound in
+terms of the stability parameter, we recall the following assumption on the random set, denoted by
+WS,U , which, in our setting, is the random attractor.
+7
+
+We use the notation ≲ in informal statements where absolute constants have been omitted.
+
+20
+
+Definition A.6. A data-dependent selection of WS,U is a deterministic mapping ω : CL(Rd )×Z n →
+Rd such that ω(WS,U , S ′ ) ∈ WS,U , almost surely. In particular, we assume the existence of a random
+variable ω0 (WS,U , S ′ ) such that, almost surely, ω0 (WS,U , S ′ ) ∈ arg maxw∈WS,U GS ′ (w).
+Assumption A.5 (Random set stability by Tuci et al. (2025)). WS,U is βn -random set stable if for any
+J ∈ N⋆ and any data-dependent selection ω of WS,U , there exists a map ω ′ : CL(Rd ) × Rd → Rd
+such that:
+• For any S, U and w ∈ Rd , ω ′ (WS,U , w) ∈ WS,U .
+• For all z ∈ Z and two datasets S, S ′ ∈ Z n differing by J elements we have:
+
+EU [|ℓ(ω(WS,U , S), z) − ℓ(ω ′ (WS ′ ,U , ω(WS,U , S)), z)|] ≤ βn J.
+
+As noted by Tuci et al. (2025), in the absence of algorithmic randomness (that is, when U is constant),
+Assump. A.5 reduces to a special case of the celebrated random set stability notion introduced by
+Foster et al. (2019). Stability assumptions are typically formulated for neighboring datasets; here, we
+instead consider a variant in which datasets differ by J elements. The two formulations are equivalent,
+and we adopt this version to streamline subsequent proofs and simplify notation.
+Theorem A.6 (Tuci et al. (2025) Theorem 4.3.). Suppose that the loss ℓ is bounded by B, L-Lipschitz
+and Assump. A.5 hold, and that WS,U is a.s. of finite diameter. Without loss of generality, assume
+−2/3
+that βn
+is an integer divisor of n. There exists δn > 0 such that for all δ < δn
+!
+r
+
+
+
+
+B
+1
+1/3
+b
+E
+sup
+R(w) − RS (w)
+≤ 2E
++ δL + βn
+1 + B 4dimB (WS,U ) log
+,
+n
+δ
+w∈WS,U
+where dimB (WS,U ) is the upper box-counting dimension (see Dfn. A.4)
+Indeed, we present a simplified version of the theorem here. Since we assume that the loss ℓ is
+globally L-Lipschitz, this constant appears directly in the bound. It would in fact suffice to assume
+Lipschitz continuity only on the random set itself.
+We will next provide the proofs omitted from the main paper.
+
+21
+
+B
+
+Omitted Proofs
+
+Before we present our main theorem. We recall some definition and basic facts, which will be used in
+the proof and improve readability.
+
+B.1
+
+Preliminaries
+
+Important Sets
+Definition B.1 (Minkowski Sum). Let U and V be two non-empty subsets of a vector space (in this
+context, Rd ). The Minkowski sum, denoted by U ⊕ V , is the set formed by adding every element of U
+to every element of V :
+U ⊕ V := {u + v | u ∈ U, v ∈ V }
+In the context of the proof, the Minkowski sum provides a rigorous way to define the “thickening”
+of a transformed set to account for approximation errors. Let U ⊂ Rd be a compact set and let
+B(0, ϵ) be the closed ball of radius ϵ > 0 centered at the origin. The Minkowski sum U ⊕ B(0, ϵ)
+corresponds exactly to the closed ϵ-neighborhood of U :
+U ⊕ B(0, ϵ) = {y ∈ Rd | ∃u ∈ U, ∥y − u∥ ≤ ϵ}
+
+(16)
+
+Equivalently, this can be expressed using the distance function dist(y, U ) = inf u∈U ∥y − u∥:
+U ⊕ B(0, ϵ) = {y ∈ Rd | dist(y, U ) ≤ ϵ}
+
+(17)
+
+Geometric Interpretation: Ellipsoids and Linear Images of Balls
+Let L ∈ Rd×d be a real matrix of rank
+k := rank(L) ≤ d.
+We study the geometry of the image of the unit ball
+B(0, 1) := {ξ ∈ Rd : ∥ξ∥2 ≤ 1}
+under the linear map L.
+Define
+
+E := L(B(0, 1)) = {Lξ ∈ Rd : ∥ξ∥2 ≤ 1}.
+
+Then E is an ellipsoid if L is invertible, and a degenerate ellipsoid (i.e. a flattened ellipsoid lying in a
+lower-dimensional subspace) if rank(L) < d.
+Canonical Form of the Ellipsoid. By the Singular Value Decomposition, there exist orthonormal
+bases
+{u1 , . . . , ud } ⊂ Rd ,
+{v1 , . . . , vd } ⊂ Rd
+and singular values
+
+σ1 ≥ σ2 ≥ · · · ≥ σk > 0,
+such that
+L=
+
+k
+X
+
+σk+1 = · · · = σd = 0
+σi vi uTi .
+
+i=1
+
+Equivalently,
+Lui = σi vi
+
+for i = 1, . . . , k,
+
+Lui = 0
+
+The singular values satisfy
+σi =
+
+q
+λi (LT L),
+22
+
+for i = k + 1, . . . , d.
+
+where λi (LT L) are the eigenvalues of LT L ordered in decreasing order. Since {u1 , . . . ud } an
+orthonormal basis we rewrite ξ ∈ Rd with ∥ξ∥ ≤ 1 as
+ξ=
+
+d
+X
+
+d
+X
+
+ai ui ,
+
+i=1
+
+i=1
+
+Then
+
+k
+X
+
+Lξ =
+
+a2i ≤ 1.
+
+σi ai vi .
+
+i=1
+
+Therefore for ti := σi ai ,
+E=
+
+( k
+X
+
+k
+X
+t2
+
+)
+
+i
+2 ≤1
+σ
+i=1 i
+
+t i vi
+
+i=1
+
+.
+
+Geometrically, E lies in the k-dimensional subspace
+Im(L) = span{v1 , . . . , vk },
+
+its principal axes are the directions v1 , . . . , vk , and the length of the i-th semi-axis is σi .
+Image of a Ball of Radius ρ. Let ρ > 0. Since
+B(0, ρ) = ρ B(0, 1),
+by linearity we have
+L(B(0, ρ)) = ρ L(B(0, 1)) = ρ E.
+Thus the scaled ellipsoid is
+ρE =
+
+( k
+X
+
+k
+X
+
+)
+t2i
+≤1 ,
+(ρσi )2
+i=1
+
+t i vi
+
+i=1
+
+with principal semi-axis lengths
+ρσ1 , ρσ2 , . . . , ρσk .
+Image of a Shifted Ball.. For any x ∈ Rd ,
+
+B(x, ρ) = {x} ⊕ B(0, ρ),
+
+and therefore
+Covering Estimates for Ellipsoid.
+
+L(B(x, ρ)) = {Lx} ⊕ ρE.
+
+Lemma B.1 (Ellipsoid covering). Let E ⊂ Rd be an ellipsoid with semi-axes
+σ1 ≥ σ2 ≥ · · · ≥ σd > 0.
+
+Let ρ > 0, and let j ∈ {0, 1, . . . , d} be such that
+σj+1 ≤ ρ
+
+(with σd+1 := 0).
+
+Then the minimal number of Euclidean balls of radius ρ needed to cover E satisfies
+N (E, ρ) ≤ 3d
+
+j
+Y
+σi
+i=1
+
+ρ
+
+.
+
+Proof. Up to translation and rotation, we may assume that
+(
+)
+d
+X
+x2i
+d
+E= x∈R :
+≤1 .
+σ2
+i=1 i
+Then E is contained in the axis-aligned box
+Q :=
+
+d
+Y
+
+[−σi , σi ].
+
+i=1
+
+23
+
+Hence
+N (E, ρ) ≤ N (Q, ρ).
+We cover Q by a grid of cubes of side length ρ. Along the i-th coordinate direction, the interval
+[−σi , σi ] can be covered by at most
+
+
+2σi
+2σi
+≤ 1+
+ρ
+ρ
+intervals of length ρ. Therefore,
+d 
+Y
+
+N (Q, ρ) ≤
+
+i=1
+
+2σi
+1+
+ρ
+
+
+.
+
+Now assume that σj+1 ≤ ρ.
+Step 1: Small axes. For i ≥ j + 1, since σi ≤ ρ, we have
+1+
+
+2σi
+≤ 1 + 2 = 3.
+ρ
+
+Step 2: Large axes. For i ≤ j, since σi ≥ ρ, we have
+1+
+
+2σi
+3σi
+≤
+.
+ρ
+ρ
+
+Indeed, this is equivalent to 1 ≤ σi /ρ, which holds.
+Step 3: Combine. Therefore,
+N (E, ρ) ≤
+
+j
+Y
+3σi
+i=1
+
+ρ
+
+·
+
+d
+Y
+
+3 = 3d
+
+i=j+1
+
+j
+Y
+σi
+i=1
+
+ρ
+
+.
+
+This completes the proof.
+Covering for Minkowski Sum.
+Lemma B.2 (Covering of Minkowski sums). Let X, Y ⊂ Rd be bounded sets and let ε, δ > 0.
+Assume that
+N
+[
+X⊂
+B(xi , ε),
+Y ⊂ B(0, δ),
+i=1
+
+where N ∈ N and xi ∈ Rd for all i ∈ {1, . . . , N }. Then the Minkowski sum A ⊕ B satisfies
+X ⊕Y ⊂
+
+N
+[
+
+B(xi , ε + δ).
+
+i=1
+
+In particular, the covering numbers satisfy
+N (X ⊕ Y, ε + δ) ≤ N (X, ε).
+Proof. Let a ∈ X ⊕ Y . Then a = x + y with x ∈ X and y ∈ Y . By assumption, there exists
+i ∈ {1, . . . , N } such that x ∈ B(xi , ε), hence ∥x − xi ∥ ≤ ε. Moreover, since y ∈ B(0, δ), we have
+∥y∥ ≤ δ. Therefore,
+∥a − xi ∥ = ∥x + y − xi ∥ ≤ ∥x − xi ∥ + ∥y∥ ≤ ε + δ,
+
+which shows that a ∈ B(xi , ε + δ). This proves the claim.
+
+We will now prove the main result of our work. We begin by bounding the Minkowski dimension
+(see Dfn. A.4)
+24
+
+Theorem B.3 (Minkowski Dimension Bound). Let (Ω, F, P, θ, ϕ) be a discrete-time random dynamical system according to Dfn. 3.1, such that for P-a.e. ω, the map x 7→ ϕ(1, ω, x) is C 2 . Suppose the
+following hold:
+1. Non-Singularity: For P-a.e. ω we assume
+inf
+
+x∈A(ω)
+
+σd (Dϕ(1, ω, x) > 0
+
+(18)
+
+2. Random Invariant Set: There exists a random compact set A = {A(ω)}ω∈Ω in Rd that is
+invariant under the cocycle ϕ, i.e.,
+ϕ(n, ω, A(ω)) = A(θn ω),
+
+P-a.s. for all n ∈ N.
+
+(19)
+
+The mapping ω 7→ A(ω) is measurable in the sense that the distance function ω 7→
+dist(x, A(ω)) is a random variable for every x ∈ Rd .
+3. Integrability: The logarithms of the linearized growth and the local curvature are integrable
+over the attractor. Specifically, we assume:
+"
+#
+E
+and
+
+sup ln ∥Dϕ(1, ω, x)∥ < ∞
+
+(20)
+
+x∈A(ω)
+
+"
+
+#
+2
+
+E ln sup ∥D ϕ(1, ω, x)∥ < ∞.
+
+(21)
+
+x∈A(ω)
+
+4. Transition Index: There exists an integer j ∗ ∈ {1, . . . , d − 1} such that:
+j∗
+X
+i=1
+
+λi ≥ 0
+
+and
+
+∗
+jX
++1
+
+λi < 0.
+
+i=1
+
+.
+5. Bounded Distortion: For A ∈ Rd×d and j ∈ {1, . . . , d}, define
+∥A∥j := σ1 (A) · · · σj (A),
+
+(22)
+
+where σ1 (A) ≥ · · · ≥ σd (A) are the singular values of A. Equivalently, ∥A∥j is the maximal
+expansion factor of A on j-dimensional volumes.
+We assume that the spatial variation of ∥Dϕ(m, ω, ·)∥j over the attractor is subexponential in
+m: for each j ∈ {1, . . . , d},
+"
+#
+1
+(23)
+lim
+E sup ln ∥Dϕ(m, ω, x)∥j − inf ln ∥Dϕ(m, ω, x)∥j = 0.
+m→∞ m
+x∈A(ω)
+x∈A(ω)
+In other words, the maximal and minimal j-volume growth rates over A(ω) agree at exponential
+scale.
+Define λ1 ≥ λ2 ≥ · · · ≥ λd be the one-step exponents associated with the maximal expansion on the
+set A(ω), defined as:
+"
+#
+λk := E
+
+sup ln σk (Dϕ(1, ω, w)) ,
+
+(24)
+
+w∈A(ω)
+
+where σk (A) denotes the k-th singular value of a linear map A. Note that by the integrability
+assumption, these values are finite.
+Then, for P-almost every ω ∈ Ω, the upper Minkowski dimension of the set A(ω) is bounded by the
+Sharpness Dimension dimS A:
+dimM (A(ω)) ≤ dimS A.
+25
+
+Proof. The main idea behind the proof is the fact that the sets A(ω) and A(θK ω) have the same
+distribution for any K. Hence, we will estimate the covering number of A(θK ω) which will enable
+us to link the covering number to the singular values of Dϕ.
+Step 1: General Covering. Let (Ω, F, P, ϕ) be a C 2 random dynamical system. We begin by
+covering the set A(ω), which is almost surely compact and, therefore, bounded. Hence, for any
+R > 0 we have a finite integer N1 (ω, R) such that
+N1 (ω,R)
+
+A(ω) ⊂
+
+[
+
+B(xi (ω), R),
+
+(25)
+
+i=1
+
+where {x1 (ω), . . . , xN1 (ω)} denote the centers of a finite covering of A(ω) by balls of radius R.
+These centers can be chosen in a measurable way Molchanov (2017). We denote the corresponding
+covering number N1 (ω, R) simply by N1 , or, to make the dependence on ω and R explicit, by
+N1 (ω, R).
+Since by assumption A(ω) is ϕ-invariant, we have A(θω) = ϕ(1, ω, A(ω)) and thus by (25)
+N1 (ω,R)
+
+A(θω) ⊂
+
+[
+
+ϕ(1, ω, B(xi , R)).
+
+(26)
+
+i=1
+
+Step 2: Local Approximation. In the second step, we approximate ϕ via a second-order Taylor
+approximation.
+By assumption, for every ω ∈ Ω the map x 7→ ϕ(1, ω, x) is twice continuously differentiable. We
+define the random variable
+1
+sup D2 ϕ(1, ω, x) ,
+(27)
+C(ω, R) :=
+2 x∈A(ω)R
+where A(ω)R denotes the closed R-neighborhood of A(ω), cf. (16).
+
+Since A(ω) is bounded almost surely, its closed R-neighborhood A(ω)R is also compact almost
+surely. Because D2 ϕ(1, ω, ·) is continuous, the supremum in the definition of C(ω, R) is finite for
+almost every ω. Hence,
+C(ω, R) < ∞ for almost every ω ∈ Ω.
+
+We now study the image of the random ball B(xi (ω), R) under the map ϕ(1, ω, ·). As argued above,
+the random constant C(ω) is finite only almost surely and not uniformly in ω. Therefore, we fix a set
+Ω0 ⊂ Ω with full measure, i.e.
+P(Ω0 ) = 1,
+such that the constant C(ω, R) is finite for all ω ∈ Ω0 . In what follows, all arguments are carried out
+pathwise for ω ∈ Ω0 . Fix i ∈ {1, . . . , N1 } and we investigate the image of ϕ(1, ω, B(xi (ω), R)).
+Fix ω ∈ Ω0 . Let i := i(ω) ∈ {1, . . . , N1 (ω)} (for notational simplicity we suppress the dependence
+on ω in the index). We consider the image of the ball B(xi (ω), R) under ϕ(1, ω, ·). Let y(ω) ∈
+B(xi (ω), R) be arbitrary. Then there exists ξ(ω) with ∥ξ(ω)∥ ≤ R such that
+y(ω) = xi (ω) + ξ(ω).
+
+Since ϕ(1, ω, ·) is C 2 , Taylor’s theorem yields
+
+ϕ(1, ω, xi (ω) + ξ(ω)) = ϕ(1, ω, xi (ω)) + Dϕ(1, ω, xi (ω)) ξ(ω) + R(ω, xi (ω), ξ(ω)),
+
+where the remainder term satisfies the uniform bound
+∥R(ω, xi (ω), ξ)∥ ≤ C(ω, R) ∥ξ∥2 ≤ C(ω, R) R2 .
+Since the point y(ω) ∈ B(xi (ω), R) was arbitrary, the above estimate holds uniformly for all
+y(ω) ∈ B(xi (ω), R). Therefore, the image of the ball B(xi (ω), R) under ϕ(1, ω, ·) satisfies the set
+inclusion
+
+ϕ(1, ω, B(xi (ω), R)) ⊂ {ϕ(1, ω, xi (ω))} ⊕ Dϕ(1, ω, xi (ω)) B(0, R) ⊕ B 0, C(ω, R) R2 ,
+(28)
+26
+
+where ⊕ denotes the Minkowski sum of sets. Since i was arbitrary, this holds for each i ∈ {1, . . . N1 }.
+In other words, we showed the set inclusion for almost all ω.
+Step 3: Covering Numbers. We recall we have now by (26) and (28)
+N1
+[
+
+A(θω) ⊂
+{ϕ(1, ω, xi (ω))} ⊕ Dϕ(1, ω, xi (ω)) B(0, R) ⊕ B 0, C(ω, R) R2 .
+
+(29)
+
+i=1
+
+Now, we will obtain an esimate on the covering number of A(θω) by using the fact that each element
+in the union
+
+{ϕ(1, ω, xi (ω))} ⊕ Dϕ(1, ω, xi (ω)) B(0, R) ⊕ B 0, C(ω, R) R2
+is a dilated ellipsoid, so that we can use our result for estimating covering numbers for ellipsoids.
+More precisely, we have that for any ρ > 0
+N1
+X
+
+N (A(θω), ρ) ≤
+N {ϕ(1, ω, xi (ω))} ⊕ Dϕ(1, ω, xi (ω))B(0, R) ⊕ B(0, C(ω, R)R2 ), ρ
+i=1
+
+(30)
+We now apply Lemma B.2 with
+
+X := Dϕ(1, ω, xi (ω)) B(0, R),
+Y := B 0, C(ω, R) R2 .
+The translation by ϕ(1, ω, xi (ω)) does not affect the covering number and can be ignored in the
+following estimates.
+We further define as covering radius
+ρ1 (ω) := R sup σj ∗ +1 (Dϕ(1, ω, w)).
+w∈A(ω)
+
+By Lemma B.2 we obtain
+N (X ⊕ Y, ρ1 (ω) + C(ω, R)R2 ) ≤ N (X, ρ1 (ω)).
+(31)
+∗
+We recall that j is the transition index and σi (Dϕ(1, ω, x)) denotes the i-th singular value of
+Dϕ(1, ω, x) for x ∈ Rd . Now we recall that X is an ellipsoid with semi axis lengths
+Rσ1 (Dϕ(1, ω, xi (ω))), . . . , Rσd (Dϕ(1, ω, xi (ω)))
+since
+X = Dϕ(1, ω, xi (ω)) B(0, R) = R · Dϕ(1, ω, xi (ω)) B(0, 1).
+Therefore, we are now ready to apply Lemma B.1. We note that
+Rσj ∗ +1 (Dϕ(1, ω, xi (ω))) ≤ R sup σj ∗ +1 (Dϕ(1, ω, w) = ρ1 (ω).
+w∈A(ω)
+
+Hence, by Lemma B.1 we obtain
+∗
+
+N (X, ρ1 (ω)) ≤ 3
+
+j
+Y
+Rσk (Dϕ(1, ω, xi (ω)))
+
+d
+
+k=1
+
+ρ1 (ω)
+
+∗
+
+d
+
+≤3
+
+j
+Y
+R supx∈A(ω) σk (Dϕ(1, ω, x)
+k=1
+
+ρ1 (ω)
+
+=: 3d µ(ω).
+
+(32)
+Notice that even though X depends on the particular center xi (ω), µ(ω) is uniform over all the
+centers and does not depend on i.
+Now, let us define
+
+ρ(ω) := ρ1 (ω) + C(ω, R)R2
+and observe that by combining (30) and (31), we have that
+N1
+X
+
+N (A(θω), ρ(ω)) ≤
+N {ϕ(1, ω, xi (ω))} ⊕ Dϕ(1, ω, xi (ω))B(0, R) ⊕ B(0, C(ω, R)R2 ), ρ(ω)
+i=1
+
+=
+
+N1
+X
+i=1
+
+≤
+
+N1
+X
+i=1
+
+N Dϕ(1, ω, xi (ω))B(0, R) ⊕ B(0, C(ω, R)R2 ), ρ(ω)
+N (Dϕ(1, ω, xi (ω))B(0, R), ρ1 (ω)
+
+≤N1 (ω, R)3d µ(ω),
+
+
+
+(33)
+(34)
+
+27
+
+where (33) follows from (31) and (34) follows from (32).
+Now, we choose R sufficiently small such that
+C(ω, R)R2 ≤ ρ1 (ω).
+
+(35)
+
+This is possible since when R tends to 0, C(ω, R) converges to a constant by definition (cf.
+(27)) hence C(ω, R)R2 tends to 0 as R tends to 0. On the other hand, since by assumption
+inf x∈A(ω) σd (Dϕ(1, ω, x)) > 0, that makes ρ1 (ω) > 0, which yields (35).
+Therefore, for sufficiently small R, we have that
+ρ(ω) ≤ 2ρ1 (ω) =: ϵ1 (ω).
+By the monotonicity of covering numbers, a larger radius requires fewer balls. Therefore, we have
+the following chain of inequalities:
+N (A(θω), ϵ1 (ω)) ≤ N (A(θω), ρ(ω)) ≤ N1 (ω, R)3d µ(ω),
+
+(36)
+
+where the last step follows from (34).
+At this stage we have estimated the covering number of A(θ1 ω). In the next step, we will iterate this
+idea to get an estimate on the covering number of A(θK ω).
+Step 4: Global Iteration and Recursive Covering. We now extend the one-step covering estimate
+to multiple time steps by induction over the discrete time index K. Fix a sufficiently small initial
+radius R > 0 and suppose that A(ω) is covered by N1 (ω, R) balls of radius R. By the invariance of
+the random attractor,
+A(θK+1 ω) = ϕ(1, θK ω, A(θK ω))
+
+for all K ∈ N.
+
+Define the sequence of radii {ϵK }K≥0 by
+ϵK+1 (ω) := 2 · ϵK (ω)
+
+σj ∗ +1 (Dϕ(1, θK ω, x)),
+
+sup
+
+ϵ0 := R.
+
+(37)
+
+x∈A(θ K ω)
+
+Moreover, the one-step covering argument derived above applies to any sufficiently small covering
+radius. Consequently, if A(θK ω) is covered by balls of radius ϵK (ω), then applying the same
+argument with ω replaced by θK ω yields a cover of A(θK+1 ω) by balls of radius ϵK+1 (ω). In
+other words, all previous estimates remain valid after the replacements A(ω) ← A(θK ω) and
+A(θω) ← A(θK+1 ω).
+
+By the one-step covering estimate from (36), each ball of radius ϵK (ω) is mapped into a set that can
+be covered by at most µ(θK ω) balls of radius ϵK+1 (ω). Consequently,
+N (A(θK ω), ϵK (ω)) ≤ N1 (ω, R)
+
+K−1
+Y
+k=0
+
+3d · µ(θk ω).
+
+(38)
+
+Iterating the radius recursion yields the explicit expression
+ϵK (ω) = R
+
+K−1
+Y
+k=0
+
+!
+2·
+
+sup
+
+k
+
+σj ∗ +1 (Dϕ(1, θ ω, x)) .
+
+(39)
+
+x∈A(θ k ω)
+
+Step 5: Ergodic Limits and Dimension Bound. To determine the asymptotic growth rate of the
+covering number, we begin by recalling the definition of the i-th sharpness exponent:
+"
+#
+λi := E
+
+sup ln σi (Dϕ(1, ω, x)) .
+
+(40)
+
+x∈A(ω)
+
+Taking logarithms in the covering estimate from (38) and normalizing by K, we obtain
+K−1
+
+1
+1
+1 X
+ln N (A(θK ω), ϵK (ω)) ≤
+ln N1 (ω, R) +
+ln µ(θk ω) + d ln 3.
+K
+K
+K
+k=0
+
+28
+
+(41)
+
+1
+Since N1 (ω, R) is finite almost surely and independent of K, we have K
+ln N1 (ω, R) → 0 as
+K → ∞. By the Birkhoff Ergodic Theorem (see Yunis (2017, Theorem 3.10)) applied to the ergodic
+process ω 7→ ln µ(ω)8 , we obtain
+
+1
+ln N (A(θK ω), ϵK (ω)) ≤ E [ln µ(ω)] + d ln 3
+K→∞ n
+
+
+lim sup
+
+ ∗
+j
+X
+= E
+sup ln σi (Dϕ(1, ω, x)) − j ∗ sup ln σj ∗ +1 (Dϕ(1, ω, x)) + d ln 3.
+i=1 x∈A(ω)
+
+(42)
+(43)
+
+x∈A(ω)
+
+Step 5: Asymptotic Scale Decay.
+By using (39), taking logarithms and normalizing by K, we compute
+K−1
+
+1 X
+1
+ln ϵK (ω) =
+K
+K
+
+k=0
+
+!
+sup
+
+k
+
+ln σj ∗ +1 (Dϕ(1, θ ω, x))
+
++ ln 2 +
+
+x∈A(θ k ω)
+
+1
+ln R.
+K
+
+Applying the Birkhoff Ergodic Theorem once more, we obtain
+"
+#
+1
+lim
+ln ϵK (ω) = E sup ln σj ∗ +1 (Dϕ(1, ω, x)) + ln 2 = λj ∗ +1 + ln 2.
+K→∞ K
+x∈A(ω)
+
+(44)
+
+(45)
+
+Our goal is to study the asymptotic growth of the covering numbers N (A(θK ω), ϵK (ω)) by dividing
+their logarithm by K and passing to the limit K → ∞. However, the current bound involve several
+scale-independent multiplicative constants (such as 3d ) that obscure the leading exponential behavior
+and would not disappear when taking this limit. To resolve this, we refine the analysis by rewriting
+the recursive scales ϵK (ω) in a form that makes their multiplicative structure explicit.
+Step 6: Computation of the Dimension Bound. We consider the m-th iterate of the cocycle,
+ϕ(m, ω, x), x ∈ Rd . By the cocycle property we have for m, k ∈ N and x ∈ Rd
+ϕ(m + k, ω, x) = ϕ(k, θm ω, ϕ(m, ω, x)),
+
+(46)
+
+and by applying the chain rule:
+Dϕ(m + k, ω, x) = Dϕ(k, θm ω, ϕ(m, ω, x)) · Dϕ(m, ω, x).
+For a linear map A ∈ Rd×d and j ∈ {1, . . . , d}, define the j-th exterior-power norm
+∥A∥j := σ1 (A) σ2 (A) · · · σj (A),
+
+(47)
+
+(48)
+
+where σ1 (A) ≥ σ2 (A) ≥ · · · ≥ σd (A) ≥ 0 are the singular values of A. We also set ∥A∥0 := 1 for
+convenience, so that σj (A) = ∥A∥j /∥A∥j−1 for all j ≥ 1.
+Vj
+Vj
+Vj
+By the functoriality of the exterior power,
+(AB) = ( A)( B), and the submultiplicativity of
+the operator norm, we have the fundamental inequality
+for all A, B ∈ Rd×d .
+
+∥AB∥j ≤ ∥A∥j ∥B∥j
+
+(49)
+
+Define the expected log-growth of ωj along the cocycle:
+#
+
+(m)
+Ωj := E ln sup ∥ Dϕ(m, ω, w) ∥j ,
+m ∈ N∗ .
+(50)
+
+6.1. Subadditivity and Fekete limits.
+"
+
+w∈A(ω)
+
+Combining the cocycle identity (47) with the submultiplicativity (49) gives
+
+
+
+∥ Dϕ(m + k, ω, x) ∥j ≤ ∥ Dϕ(k, θm ω, ϕ(m, ω, x)) ∥j · ∥ Dϕ(m, ω, x) ∥j .
+
+Taking the supremum over x ∈ A(ω) and using the invariance ϕ(m, ω, A(ω)) = A(θm ω):
+
+
+
+sup ∥ Dϕ(m + k, ω, x) ∥j ≤ sup ∥ Dϕ(k, θm ω, y) ∥j · sup ∥ Dϕ(m, ω, x) ∥j .
+x∈A(ω)
+8
+
+y∈A(θ m ω)
+
+x∈A(ω)
+
+By our integrability assumption µ is also integrable, therefore the theorem can be applied.
+
+29
+
+Taking logarithms, then expectations, and using the θm -invariance of P, we obtain the subadditivity
+(m+k)
+
+Ωj
+
+(m)
+
+≤ Ωj
+
+(k)
+
+for all m, k ∈ N∗ .
+
++ Ωj
+
+(51)
+
+By the integrability assumption and Fekete’s lemma, the following limit exists for each j ∈
+{1, . . . , d}:
+1 (m)
+1 (m)
+Λj := lim
+Ωj = inf
+Ωj .
+(52)
+m→∞ m
+m≥1 m
+(1)
+
+We set Λ0 := 0. By Fekete’s lemma, Λj ≤ Ωj . Moreover, since ln is monotone increasing and
+Qj
+i=1 σi (Dϕ(1, ω, x)) > 0 by the non-singularity assumption,
+"
+#
+"
+#
+j
+j
+Y
+X
+(1)
+Ωj = E ln sup
+σi (Dϕ(1, ω, x)) = E sup
+ln σi (Dϕ(1, ω, x))
+x∈A(ω) i=1
+
+≤
+
+j
+X
+i=1
+
+x∈A(ω) i=1
+
+"
+E
+
+#
+sup ln σi (Dϕ(1, ω, x)) =
+x∈A(ω)
+
+j
+X
+
+λi ,
+
+(53)
+
+i=1
+
+where the inequality uses supx (f1 (x) + · · · + fj (x)) ≤ supx f1 (x) + · · · + supx fj (x). Hence
+Pj
+Pj
+Λj ≤ i=1 λi . In particular, if Λj ≥ 0 then i=1 λi ≥ 0, so the transition index j ∗ (Λ) (the largest
+j ∈ {0, . . . , d − 1} with Λj ≥ 0) satisfies jΛ∗ ≤ j ∗ the transition index defined in terms of the
+one-step exponents λi .
+Now define the m-step sharpness exponents
+"
+(m)
+λi := E
+
+#
+
+sup ln σi Dϕ(m, ω, x)
+
+
+
+,
+
+i = 1, . . . , d.
+
+(54)
+
+x∈A(ω)
+
+6.3. Covering bound for the m-step map. We apply the covering argument from Steps 1–3 to
+the m-step map ϕ(m, ω, ·) in place of ϕ(1, ω, ·), with the replacement θω ← θm ω. Steps 1 and 2
+(general covering and Taylor approximation) carry over without modification. In Step 3, the ellipsoid
+covering lemma (Lemma B.1) involves a free index j at which the singular values are split into
+expanding directions σ1 , . . . , σj and a contracting direction σj+1 that determines the covering radius.
+We choose j = jΛ∗ , where jΛ∗ is the largest integer in {0, . . . , d − 1} such that ΛjΛ∗ ≥ 0. We now
+verify that this choice is well-defined and that the resulting covering argument is valid.
+Pj ∗ +1
+Pj ∗ +1
+First, jΛ∗ is well-defined: by Assumption 4, i=1 λi < 0. Since Λj ∗ +1 ≤ i=1 λi < 0, and
+Λ0 = 0 ≥ 0, there exists at least one j with Λj ≥ 0 and at least one with Λj < 0, so jΛ∗ is well-defined
+and satisfies 0 ≤ jΛ∗ ≤ j ∗ .
+(m)
+
+1
+Second, ΛjΛ∗ +1 < 0 by definition of jΛ∗ . By Fekete’s lemma, m
+Ωj ∗ +1 → ΛjΛ∗ +1 < 0. Since for any
+Λ
+d×d
+A∈R
+it holds σ1 (A) ≥ σ2 (A) ≥ · · · ≥ σd (A), we have σk (A) ≥ σjΛ∗ +1 (A) for all k ≤ jΛ∗ + 1,
+and therefore
+∗
+jΛ
++1
+Y
+∗
+∥A∥jΛ∗ +1 =
+σk (A) ≥ σjΛ∗ +1 (A)jΛ +1 .
+k=1
+
+Taking logarithms and dividing by jΛ∗ + 1:
+ln σjΛ∗ +1 (A) ≤
+
+1
+
+ln ∥A∥jΛ +1 .
+jΛ∗ + 1
+∗
+
+Applying this with A = Dϕ(m, ω, x) and taking the supremum over x ∈ A(ω):
+sup ln σjΛ∗ +1 (Dϕ(m, ω, x)) ≤
+
+x∈A(ω)
+
+1
+ln sup ∥(Dϕ(m, ω, x))∥jΛ∗ +1 ,
+jΛ∗ + 1 x∈A(ω)
+∗
+
+where we used the monotonicity of ln and the fact that t 7→ t1/(jΛ +1) is monotone increasing, so the
+supremum passes inside. Taking expectations and dividing by m:
+1 (m)
+1
+1 (m) m→∞ ΛjΛ∗ +1
+λj ∗ +1 ≤ ∗
+·
+Ω∗
+−−−−→ ∗
+< 0,
+m Λ
+jΛ + 1 m jΛ +1
+jΛ + 1
+30
+
+(m)
+
+by Fekete’s lemma. In particular, λj ∗ +1 → −∞, which shows that supx∈A(ω) σjΛ∗ +1 (Dϕ(m, ω, x))
+Λ
+decays exponentially in m. Therefore, the covering radius ρ1 (ω, m) = R supx σjΛ∗ +1 (Dϕ(m, ω, x))
+shrinks with each iteration of the m-step map, and the iterative covering argument of Steps 4–5
+produces a finite dimension bound.
+With this choice, the covering number of each image ellipsoid satisfies
+
+QjΛ∗
+
+k=1 σk Dϕ(m, ω, xi )
+d
+N Dϕ(m, ω, xi ) B(0, R), ρ1 (ω, m) ≤ 3
+j ∗ ,
+supx∈A(ω) σjΛ∗ +1 (Dϕ(m, ω, x)) Λ
+
+(55)
+
+where ρ1 (ω, m) := R supx∈A(ω) σjΛ∗ +1 (Dϕ(m, ω, x)). To obtain a bound that is uniform over all
+centers xi ∈ A(ω), we use
+∗
+
+jΛ
+Y
+k=1
+
+
+
+
+σk Dϕ(m, ω, xi ) = ∥ Dϕ(m, ω, xi ) ∥jΛ∗ ≤ sup ∥ Dϕ(m, ω, x) ∥jΛ∗ .
+x∈A(ω)
+
+Define the multiplier
+(m)
+
+µ
+
+
+supx∈A(ω) ∥ Dϕ(m, ω, x) ∥jΛ∗
+(ω) := 
+jΛ∗ .
+supx∈A(ω) σjΛ∗ +1 Dϕ(m, ω, x)
+
+Then the one-step covering estimate (applied to the m-step map) gives
+
+N A(θm ω), ϵ1 (ω, m) ≤ N1 (ω, R) 3d µ(m) (ω),
+
+(56)
+
+(57)
+
+where ϵ1 (ω, m) = 2ρ1 (ω, m) = 2R supx∈A(ω) σjΛ∗ +1 (Dϕ(m, ω, x)).
+6.4. Iterating the m-step map. Define the sequence of radii for the K-fold iteration of the m-step
+map:
+
+ϵK+1 (ω, m) := 2 ϵK (ω, m)
+sup
+σjΛ∗ +1 Dϕ(m, θmK ω, x) ,
+ϵ0 := R.
+(58)
+x∈A(θ mK ω)
+
+By the inductive argument of Step 5 (with θ replaced by θm ):
+K−1
+Y
+
+N A(θmK ω), ϵK (ω, m) ≤ N1 (ω, R)
+3d µ(m) (θmk ω).
+
+(59)
+
+k=0
+
+The radii iterate to
+ϵK (ω, m) = R
+
+K−1
+Y
+k=0
+
+2
+
+sup
+x∈A(θ mk ω)
+
+
+σjΛ∗ +1 Dϕ(m, θmk ω, x) .
+
+(60)
+
+6.5. Ergodic limits. Taking logarithms in (59), dividing by K, and applying the Birkhoff Ergodic
+Theorem to ω 7→ ln µ(m) (ω) (with respect to θm ), we obtain
+
+
+
+1
+lim sup ln N A(θmK ω), ϵK (ω, m) ≤ E ln µ(m) (ω) + d ln 3.
+(61)
+K→∞ K
+From the definition of µ(m) :
+
+
+(m)
+(m)
+E ln µ(m) (ω) = Ωj ∗ − jΛ∗ λj ∗ +1 .
+Λ
+
+Λ
+
+(62)
+
+Similarly, from (60) and the Birkhoff Ergodic Theorem:
+1
+(m)
+ln ϵK (ω, m) = λj ∗ +1 + ln 2.
+Λ
+K→∞ K
+lim
+
+6.6. Sign condition and passage to the limit.
+
+(63)
+
+(m)
+
+We need λj ∗ +1 + ln 2 < 0, i.e.,
+Λ
+
+(m)
+λj ∗ +1 < − ln 2.
+Λ
+
+31
+
+(64)
+
+∗
+
+Since σjΛ∗ +1 (A)jΛ +1 ≤ ωjΛ∗ +1 (A) for any A ∈ Rd×d , we have the upper bound
+1
+(m)
+Ω∗ .
+∗
+jΛ + 1 jΛ +1
+
+(m)
+
+λj ∗ +1 ≤
+Λ
+
+(m)
+
+(m)
+
+Λ
+
+Λ
+
+(65)
+
+1
+By Fekete’s lemma, m
+Ωj ∗ +1 → ΛjΛ∗ +1 < 0, so Ωj ∗ +1 → −∞ as m → ∞. Combined with (65),
+(m)
+
+this gives λj ∗ +1 → −∞, and in particular (64) holds for all m sufficiently large.
+Λ
+
+For such m, the box-counting dimension satisfies
+(m)
+
+dimM A(ω) ≤
+
+(m)
+
+Ωj ∗ − jΛ∗ λj ∗ +1 + d ln 3
+Λ
+
+Λ
+
+(m)
+
+−λj ∗ +1 − ln 2
+
+.
+
+(66)
+
+Λ
+
+Dividing numerator and denominator by m:
+(m)
+1 (m)
+ln 3
+1
+− jΛ∗ m
+λj ∗ +1 + d m
+∗
+m Ωj Λ
+Λ
+.
+1 (m)
+−m
+λj ∗ +1 − lnm2
+Λ
+
+dimM A(ω) ≤
+
+(67)
+
+(m)
+
+1
+ln 3
+We now pass to the limit m → ∞. By Fekete’s lemma, m
+Ωj ∗ → ΛjΛ∗ . The terms d m
+and lnm2
+Λ
+
+(m)
+
+1
+λj ∗ +1 .
+vanish. It remains to identify the limit of m
+Λ
+
+Since σjΛ∗ +1 (A) = ωjΛ∗ +1 (A)/ωjΛ∗ (A), we have the two-sided bounds
+(m)
+
+(m)
+
+Λ
+
+Λ
+
+Ωj ∗ +1 − Ωj ∗
+
+(m)
+
+(m)
+
+(m)
+
+Λ
+
+Λ
+
+Λ
+
+≤ λj ∗ +1 ≤ Ωj ∗ +1 − Ω̂j ∗ ,
+
+(68)
+
+where the lower bound uses sup(f − g) ≥ sup f − sup g and the upper bound uses sup(f − g) ≤
+(m)
+(m)
+1
+sup f − inf g. By Fekete’s lemma, m
+(Ωj ∗ +1 − Ωj ∗ ) → ΛjΛ∗ +1 − ΛjΛ∗ . By the Bounded Distortion
+Λ
+
+(m)
+
+Λ
+
+(m)
+
+(m)
+
+1
+1
+assumption, m
+(Ωj ∗ − Ω̂j ∗ ) → 0, and hence m
+Ω̂j ∗
+Λ
+Λ
+Λ
+ΛjΛ∗ +1 − ΛjΛ∗ . By the squeeze theorem,
+
+lim
+
+1
+
+m→∞ m
+
+(m)
+
+(m)
+
+Λ
+
+Λ
+
+1
+→ ΛjΛ∗ , so that m
+(Ωj ∗ +1 − Ω̂j ∗ ) →
+
+(m)
+
+λj ∗ +1 = ΛjΛ∗ +1 − ΛjΛ∗ =: λ̃jΛ∗ +1 .
+Λ
+
+(69)
+
+Substituting all limits into (67), we obtain
+dimM A(ω) ≤
+
+ΛjΛ∗ − jΛ∗ λ̃jΛ∗ +1
+−λ̃jΛ∗ +1
+
+= jΛ∗ +
+
+ΛjΛ∗
+=: Ds .
+ΛjΛ∗ − ΛjΛ∗ +1
+Pj ∗
+
+(70)
+
+λ
+
+i
+We now show that Ds ≤ dimS AS , where dimS AS := j ∗ + |λi=1
+denotes the bound with one-step
+j ∗ +1 |
+a
+exponents. Define g(a, b) := a−b
+for a ≥ 0 > b, so that Ds = jΛ∗ + g(ΛjΛ∗ , ΛjΛ∗ +1 ). Since b < 0
+and a ≥ 0:
+∂g
+−b
+∂g
+a
+=
+> 0,
+=
+≥ 0,
+2
+∂a
+(a − b)
+∂b
+(a − b)2
+so g is monotonically increasing in both arguments, and g(a, b) < 1 since a < a − b (because b < 0).
+
+We distinguish two cases.
+Case 1: jΛ∗ = j ∗ .
+
+Since Λj ≤
+
+Pj
+
+i=1 λi for all j, the monotonicity of g in the first argument gives
+
+ ∗
+
+j
+X
+g(Λj ∗ , Λj ∗ +1 ) ≤ g 
+λi , Λj ∗ +1  .
+i=1
+
+Pj ∗ +1
+
+Pj ∗ +1
+By Assumption 4, i=1 λi < 0, and since Λj ∗ +1 ≤ i=1 λi < 0, the monotonicity of g in the
+second argument yields
+ ∗
+
+ ∗
+
+∗
+Pj ∗
+j
+j
+jX
++1
+X
+X
+λi
+
+
+
+
+g
+λi , Λj ∗ +1 ≤ g
+λi ,
+λi = i=1 .
+∗
+|λj +1 |
+i=1
+i=1
+i=1
+32
+
+Pj ∗
+
+λ
+
+i
+Therefore Ds = j ∗ + g(Λj ∗ , Λj ∗ +1 ) ≤ j ∗ + |λi=1
+= Dλ .
+j ∗ +1 |
+
+Case 2: jΛ∗ < j ∗ . Since g(ΛjΛ∗ , ΛjΛ∗ +1 ) < 1, we have Ds < jΛ∗ + 1 ≤ j ∗ . On the other hand,
+Pj ∗
+Pj ∗
+λi
+Dλ = j ∗ + |λi=1
+≥ j ∗ , since i=1 λi ≥ 0 by Assumption 4. Therefore Ds < j ∗ ≤ Dλ .
+j ∗ +1 |
+Combining both cases, we conclude that for P-almost every ω:
+Pj ∗
+λi
+∗
+< dimS A.
+(71)
+dimM (A(ω)) ≤ Ds ≤ Dλ = j + i=1
+∗
+|λj +1 |
+Pj
+The bound Ds is strictly sharper than dimS AS whenever Λj < i=1 λi for some j ∈ {jΛ∗ , jΛ∗ + 1},
+which occurs when different points on the attractor maximize different singular values σi . This
+completes Step 6.
+Step 7: Transition to Arbitrary Radii. The covering estimates obtained in Step 6 are formulated
+along the discrete sequence of radii {ϵK (ω, m)}K∈N . In this step, we show that the dimension
+bound extends to arbitrary radii ϵ → 0, thereby establishing an upper bound on the upper Minkowski
+dimension.
+(m)
+
+Fix m ∈ N sufficiently large such that λj ∗ +1 + ln 2 < 0 (which is possible by Step 6.6). Let
+Λ
+{ϵK (ω, m)}K∈N be the sequence of radii defined in (58). By (63), the Birkhoff Ergodic Theorem
+gives
+1
+(m)
+lim
+ln ϵK (ω, m) = λj ∗ +1 + ln 2 =: ℓ(m) < 0
+P-a.s.
+(72)
+Λ
+K→∞ K
+In particular, ϵK (ω, m) → 0 exponentially as K → ∞, and for P-a.e. ω the sequence {ϵK (ω, m)}K
+is eventually strictly decreasing.
+We now work with a fixed realization ω in the full-measure set where (72) and the covering estimate
+(59) both hold. The estimates in Step 6 bound N (A(θmK ω), ϵK (ω, m)). Since θmK preserves P and
+the entire argument from Steps 1–6 applies with ω replaced by any ω ′ in the underlying full-measure
+set, the same estimates hold with θmK ω replaced by ω. That is, for P-a.e. ω there exists a sequence
+of radii ϵK (ω, m) → 0 such that
+1
+ln N (A(ω), ϵK (ω, m)) ≤ E[ln µ(m) (ω)] + d ln 3.
+K→∞ K
+
+lim sup
+
+(73)
+
+For any ϵ > 0 sufficiently small, there exists K = K(ϵ) such that ϵ ∈ [ϵK+1 (ω, m), ϵK (ω, m)).
+Since covering numbers are monotonically non-increasing in the radius:
+N (A(ω), ϵK (ω, m)) ≤ N (A(ω), ϵ) ≤ N (A(ω), ϵK+1 (ω, m)).
+
+(74)
+
+Taking logarithms and dividing by − ln ϵ > 0:
+ln N (A(ω), ϵK (ω, m))
+ln N (A(ω), ϵ)
+ln N (A(ω), ϵK+1 (ω, m))
+≤
+≤
+,
+− ln ϵK+1 (ω, m)
+− ln ϵ
+− ln ϵK (ω, m)
+
+(75)
+
+where we used ϵK+1 (ω, m) ≤ ϵ < ϵK (ω, m) to bound − ln ϵ from below and above in the denominators.
+It remains to show that the lower and upper bounds in (75) have the same lim sup. By (72),
+1
+K ln ϵK (ω, m) → ℓ(m) < 0, and therefore
+1
+
+ln ϵK+1 (ω, m) K + 1 K→∞ ℓ(m)
+ln ϵK+1 (ω, m)
+= K+1
+·
+−−−−→
+· 1 = 1.
+1
+ln ϵK (ω, m)
+K
+ℓ(m)
+K ln ϵK (ω, m)
+
+(76)
+
+Consequently, replacing − ln ϵK+1 by − ln ϵK (or vice versa) in the denominators of (75) does not
+affect the lim sup. Both the lower and upper bounds converge to the same value, and we conclude
+lim sup
+ϵ→0
+
+ln N (A(ω), ϵ)
+ln N (A(ω), ϵK (ω, m))
+= lim sup
+.
+− ln ϵ
+− ln ϵK (ω, m)
+K→∞
+33
+
+(77)
+
+Combining (77) with the covering estimate (73) and the radii asymptotics (72), we obtain for each
+fixed m sufficiently large:
+dimM (A(ω)) = lim sup
+ϵ→0
+
+ln N (A(ω), ϵ)
+E[ln µ(m) (ω)] + d ln 3
+≤
+.
+(m)
+− ln ϵ
+−λ ∗ − ln 2
+
+(78)
+
+jΛ +1
+
+Passing to the limit m → ∞ as in Step 6.6 yields
+
+dimM (A(ω)) ≤ dimS AS
+for P-almost every ω. This completes the proof.
+
+Theorem B.4. Generalization via Sharpness Dimension
+Let S = {z1 , . . . , zn } ∼ µ⊗n
+be a dataset of size n. Let (Ω, F, P, θ, ϕ) be a discrete-time RDS
+z
+according to Dfn 3.1 such that Assump. 4.4 holds. Under Assumps. 4.2 and 4.3, there exists a constant
+C > 0 s.t. with probability at least 1 − ζ − γ over the joint draw (S, ω) ∼ µ⊗n
+z ⊗ P, there exists
+δn,γ > 0 such that for all 0 < δ < δn,γ ,
+r
+4 dimS AS log(1/δ)
+GS (A(ω)) ≤ 2Lδ + 2B
+n
+I∞ (AS (ω), S) + log(1/ζ) CB 2
+√
++
++ √ .
+n
+n
+We recall that GS (A(ω)) denotes the worst-case generalization gap (see (1)) and I∞ (AS (ω), S) (see
+Dfn. A.5) denotes the total mutual information between the random pullback attractor AS (ω) and S.
+Proof. The result is an immediate consequence of Cor. A.4 and Thm. B.3.
+Theorem B.5 (Stability DS Bound). Suppose the loss function ℓ is B-bounded and L-Lipschitz, and
+Assump. A.5 holds. For each dataset S ∈ Z n , let (Ω, F, P, θ, ϕ) be a C 2 discrete-time RDS (per
+Dfn. 3.1) possessing a unique compact random pullback attractor AS (ω). We assume the following
+conditions hold:
+(i) Non-Singularity: For P-a.e. ω, the Jacobian is non-singular on the attractor:
+inf σd (Dϕ(1, ω, x)) > 0.
+x∈AS (ω)
+
+(ii) Integrability: The first and second derivatives of the map satisfy:
+"
+#
+"
+E
+
+sup
+x∈AS (ω)
+
++
+
+ln ∥DϕS (1, ω, x)∥ < ∞
+
+and
+
+E
+
+sup
+x∈AS (ω)
+
+#
+
++
+
+ln ∥D2 ϕS (1, ω, x)∥ < ∞,
+
+where ln+ (x) := max{0, ln x}.
+(iii) Transition Index: There exists an integer j ∗ ∈ {1, . . . , d − 1} such that the global sharpness
+values λi (see Dfn. 4.2) satisfy:
+∗
+
+j
+X
+
+.
+
+i=1
+
+λi ≥ 0
+
+and
+
+∗
+jX
++1
+
+λi < 0.
+
+i=1
+
+(iv) Bounded Distortion: For A ∈ Rd×d and j ∈ {1, . . . , d}, define
+∥A∥j := σ1 (A) · · · σj (A),
+(79)
+where σ1 (A) ≥ · · · ≥ σd (A) are the singular values of A. Equivalently, ∥A∥j is the maximal
+expansion factor of A on j-dimensional volumes.
+We assume that the spatial variation of ∥Dϕ(m, ω, ·)∥j over the attractor is subexponential in
+m: for each j ∈ {1, . . . , d},
+"
+#
+1
+E sup ln ∥Dϕ(m, ω, x)∥j − inf ln ∥Dϕ(m, ω, x)∥j = 0.
+(80)
+lim
+m→∞ m
+x∈A(ω)
+x∈A(ω)
+In other words, the maximal and minimal j-volume growth rates over A(ω) agree at exponential
+scale.
+34
+
+−2/3
+
+Furthermore, assume βn
+is an integer divisor of n. Then, there exists δn > 0 such that for all
+0 < δ < δn :
+!
+r
+
+
+
+
+B
+1
+b S (w)
+E
+sup
+R(w) − R
+≤ 2E
++ δL + βn1/3 1 + B 4 dimS AS log
+.
+n
+δ
+w∈WS,U
+Proof. The proof follows from Thm. A.6 and Thm. B.3.
+
+C
+
+Implementation Details and Computational Complexity
+
+Lanczos and SLQ. For all SLQ-based estimators, each Lanczos run uses one Rademacher probe
+vector and one minibatch Hessian operator. The operator is fixed throughout the Lanczos iterations of that run, so the Krylov subspace and Gaussian quadrature interpretation are well defined.
+We resample only between independent runs, average the resulting quadrature measures or their
+histogram/smoothed density estimates, and then compute SD-SLQ, SD-KDE, or SD-PS from this averaged spectral measure. This procedure estimates the expectation over minibatch Hessian operators
+and probe vectors without mixing Hessian-vector products from different operators inside a single
+Lanczos run.
+More explicitly, let N be the number of parameters and let RSLQ be the number of independent SLQ
+runs. In run i, we sample a minibatch Bi and define the corresponding Hessian operator
+Hi := ∇2w ℓ(w⋆ ; Bi ).
+
+(81)
+
+Given an independent Rademacher probe vi ∈ {±1}N , we set qi,1 = vi /∥vi ∥ and run m Lanczos
+steps on the fixed operator Hi . This produces a basis Qi = [qi,1 , . . . , qi,m ] and a symmetric
+tridiagonal matrix Ti , with diagonal entries αi,1 , . . . , αi,m and off-diagonal entries βi,1 , . . . , βi,m−1 ,
+such that
+Hi Qi = Qi Ti + βi,m qi,m+1 e⊤
+(82)
+m.
+Here em denotes the m-th standard basis vector in Rm ). Let
+Ti = Ui diag(e
+αi,1 , . . . , α
+ei,m )Ui⊤
+
+(83)
+
+be the eigendecomposition of this tridiagonal matrix. The eigenvalues α
+ei,ℓ of Ti are the Ritz values, i.e.
+Lanczos approximations to the eigenvalues of Hi . The associated columns of Ui are the Ritz vectors,
+and the corresponding Gaussian quadrature weights are given by their squared first components:
+ωi,ℓ = (Ui )21ℓ ,
+
+ℓ = 1, . . . , m.
+
+(84)
+
+Thus, for a test function f ,
+⊤
+qi,1
+f (Hi )qi,1 ≈ e⊤
+1 f (Ti )e1 =
+
+m
+X
+
+ωi,ℓ f (e
+αi,ℓ ).
+
+(85)
+
+ℓ=1
+
+Because qi,1 is a normalized Rademacher probe, multiplying by N gives an unbiased trace-scale
+estimate in expectation over the probe. Averaging across the independently sampled minibatch
+Hessians and probes yields the empirical spectral measure
+RSLQ m
+N X X
+νbH =
+ωi,ℓ δαei,ℓ .
+RSLQ i=1
+
+(86)
+
+ℓ=1
+
+Here δx denotes the Dirac measure at x. This is the object averaged by our SLQ procedure: not
+full spectra, but the quadrature measures induced by Ritz values and weights from independent
+fixed-operator Lanczos runs. The histogram estimator used for SD-SLQ is obtained by binning this
+measure. For a bin Ib = [ab , ab+1 ) of width ∆b = ab+1 − ab , we set
+ρbhist (α) =
+
+N
+
+RSLQ m
+X X
+
+RSLQ ∆b i=1
+
+ℓ=1
+
+ωi,ℓ 1{e
+αi,ℓ ∈ Ib },
+
+35
+
+α ∈ Ib .
+
+(87)
+
+The smoothed estimator used for SD-KDE replaces the bin indicator by a kernel Kh with bandwidth
+h:
+RSLQ m
+N X X
+ρbkde (α) =
+ωi,ℓ Kh (α − α
+ei,ℓ ).
+(88)
+RSLQ i=1
+ℓ=1
+
+To compute the Sharpness Dimension estimators, we apply the one-step Jacobian map
+gη (α) = log(|1 − ηα| + ε)
+
+(89)
+
+to the Ritz values and estimate the corresponding push-forward density. SD-SLQ and SD-KDE apply
+the Sharpness Dimension formula to the histogram or smoothed density of these transformed values,
+respectively. SD-PS, described next, uses the same smoothed-density viewpoint but first converts
+the density into equal-mass pseudo-eigenvalues before applying the finite-dimensional weighted
+sharpness dimension formula.
+Pseudo-spectrum SD (SD-PS). We also report a pseudo-spectrum version of the SLQ estimator,
+denoted SD-PS, which discretizes the smoothed spectral density before applying the same sharpnessdimension formula as in Dfn. 4.2. Let ρb(α) be the smoothed
+R SLQ estimate of the Hessian spectral
+density for a model with N parameters, normalized so that ρb(α) dα = N . We form its cumulative
+Rα
+mass function Fb(α) = −∞ ρb(s) ds and choose equal-mass quantiles
+
+
+r + 1/2
+N ,
+r = 0, . . . , M − 1,
+(90)
+α
+br := Fb−1
+M
+where M ≤ N is the number of pseudo-eigenvalues used in the discretization. Each pseudoeigenvalue carries weight N/M . We then map these values through the one-step GD Jacobian
+spectrum,
+zbr = log(|1 − η α
+br | + ε) ,
+(91)
+sort the values and reindex them so that zb0 ≥ · · · ≥ zbM −1 , and compute the weighted Sharpness
+Pj
+Dimension: if j is the largest index for which r=0 (N/M )b
+zr ≥ 0, then
+PS
+
+d =
+dim
+S
+
+j
+X
+
+N
++
+M
+r=0
+
+Pj
+
+zr
+r=0 (N/M )b
+|b
+zj+1 |
+
+,
+
+(92)
+
+with the usual truncation to [0, N ] and the boundary conventions from Dfn. 4.2. In our GPT-2
+experiments we use this estimator as an alternative discretization of the same smoothed SLQ measure
+used for SD-KDE. Thus SD-PS differs from SD-KDE only in how the density is converted into
+the ordered log-singular-value spectrum: SD-KDE integrates the density directly, whereas SD-PS
+first constructs equal-mass pseudo-eigenvalues and then applies the finite-dimensional weighted
+Sharpness Dimension formula.
+Complexity analysis. Regarding the SD computation, for a network with N parameters and k minibatches, assume the cost of one Hessian–vector product (HVP) is Chvp . Explicit Hessian computation
+has memory complexity Θ(N 2 ) and worst-case runtime complexity O(N · Chvp ). Singular value
+or eigenvalue decompositions have memory complexity Θ(N 2 ) and runtime complexity Θ(N 3 ).
+In this case, since SD computation requires Θ(N ) memory and runtime, the overall algorithm has
+O(kN Chvp + kN 3 ) runtime complexity and Θ(N 2 ) memory complexity. In the approximate SLQ
+variant, assuming m iterations per Lanczos run, each run has runtime complexity Θ(m · Chvp ) for
+HVPs and Θ(m2 N ) for reorthogonalization, with Θ(mN ) memory complexity. Hence, the SLQbased algorithm has total runtime complexity Θ(kmChvp +km2 N ) and memory complexity Θ(mN ).
+For typical settings where m ≪ N , both runtime and memory complexity are significantly reduced.
+
+D
+
+Additional Results
+
+Grokking for the 3-layer MLP. Below in Fig 7 we present another experiment, with different seeds
+and hyper-parameters in the grokking setting identical to the main paper but for a 3-layer MLP with
+32 hidden features instead. Similarly, we use 100 uniformly spaced checkpoints and ReLU activation,
+trained with SGD using only weight decay. In particular, we observe an interesting phenomenon
+36
+
+Normalized metric value
+
+in the first plot, where our dimension increases while test accuracy is increasing slowly, sharply
+decreases while the test accuracy is increasing sharply (grokking), and then increases again afterwards
+when test accuracy reaches 100%. In contrast, the other measures decrease monotonically. This
+behaviour aligns with the theoretical motivation of our dimension, which targets the edge-of-stability
+regime, and accurately reflects the grokking phase transitions. A similar phase transition is visible in
+Plot 3, while Plot 4 reflects the grokking experiment from the main paper. In Plot 2, focusing on the
+sharp grokking region reveals a similarly sharp decrease in SD.
+1
+
+η = 0.3, W D = 3e − 4, Seed − I
+
+η = 0.4, W D = 2.5e − 4, Seed − I
+
+η = 0.1, W D = 6e − 4, Seed − II
+
+η = 0.1, W D = 6e − 4, Seed − III
+
+Eα
+Tr(H)
+Sharpness
+RDS-Sharpness
+SD
+Test Acc.
+
+0.8
+0.6
+0.4
+0.2
+0
+1
+
+1.5
+
+2
+
+Epoch
+
+2.5
+
+3
+×104
+
+0.5
+
+1
+
+1.5
+
+2
+
+Epoch
+
+2.5
+
+3
+
+×104
+
+1
+
+1.5
+
+2
+
+Epoch
+
+2.5
+
+3
+×104
+
+1
+
+1.5
+
+2
+
+Epoch
+
+2.5
+
+3
+×104
+
+Figure 7: Grokking analysis for different learning rates (η), weight decay (W D) and seeds 3-layer
+MLP with ReLU activation and no momentum. Note that the suddenness of the grokking behavior is
+best captured in the complexity measures we introduce: RDS-Sharpness and Sharpness Dimension
+(SD).
+Hessian Spectra & RDS Sharpness Spectrum.. Figure 8 illustrates our spectral estimators for Hessian spectral density and the RDS sharpness spectrum on GPT-2 across SGD, SGD with momentum,
+and AdamW. The left image in each pair visualizes the expectation of minibatch Hessian spectral
+density over eigenvalues α. The corresponding right images show the push-forward of this density
+through the transformation α 7→ log |1 − ηα|, i.e., the transformed spectral density underlying the
+RDS Sharpnesses of Order k, λk . We observe that, across all three optimizers, a large fraction of
+the Hessian spectrum is concentrated near α = 0. This mass near α = 0 produces a peak near 0 in
+the RDS sharpness spectrum and corresponds to neutral or nearly neutral directions (i.e., expanding
+and contracting with almost 0 log-singular values). In contrast, the isolated spikes, positive tails,
+and negative curvature components of the Hessian spectrum produce the contractive and expansive
+directions of the RDS Sharpness spectrum. Positive eigenvalues less than 2/η yield negative RDS
+sharpness values, corresponding to the contractive directions. Positive eigenvalues that are larger than
+2/η and all negative eigenvalues yield positive RDS sharpness values, corresponding to expansive
+directions instead. Hence, this visualization clarifies why the Sharpness Dimension depends on
+the full Hessian spectrum rather than only the top Hessian eigenvalue or a small part of it: SD is
+determined by the balance between the positive RDS sharpness directions, the near-neutral bulk, and
+the negative tail. Moreover, the estimated Hessian densities are consistent with prior observations on
+neural-network and transformer Hessian spectra Ghorbani et al. (2019); Zhang et al. (2024), providing
+additional evidence that our SLQ-based procedure captures the relevant spectral structure.
+
+37
+
+(a) SGD
+(b) SGD with Momentum
+(c) AdamW
+Figure 8: Hessian Spectra & RDS Sharpness Spectrum. For selected GPT-2 runs trained with
+(a) SGD, (b) SGD with momentum, and (c) AdamW, we show the SLQ-based histogram estimate
+(SD-SLQ) and the kernel-smoothed estimate (SD-KDE) for both the raw Hessian spectrum (left in
+each pair) and the transformed RDS sharpness spectrum log |1 − ηα| (right in each pair). Together,
+the panels show how optimizer and hyperparameter choices affect both the Hessian spectrum and its
+induced RDS sharpness spectrum. These examples show that the SLQ histogram and the corresponding kernel-smoothed estimate provide consistent views of the underlying spectrum across a range of
+training configurations.
+
+38
+
+

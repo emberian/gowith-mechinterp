@@ -16,3 +16,4 @@ infra/instance.env
 infra/preflight.json
 # box-only rendered prompts (large, regenerable from items + code)
 data/prompts.jsonl
+data/source/refs/*.pdf
