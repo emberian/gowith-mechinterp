@@ -58,12 +58,28 @@ CONDITIONS = ["A", "B", "C", "D", "E", "F"]
 _INFERENCE_PROFILE = {
     "amazon.nova-2-lite-v1:0": "us.amazon.nova-2-lite-v1:0",
     "anthropic.claude-haiku-4-5-20251001-v1:0": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    # cross-family sweep additions (AWS marks these INFERENCE_PROFILE, need us. prefix)
+    "anthropic.claude-opus-4-8": "us.anthropic.claude-opus-4-8",
+    "meta.llama3-3-70b-instruct-v1:0": "us.meta.llama3-3-70b-instruct-v1:0",
+    "deepseek.r1-v1:0": "us.deepseek.r1-v1:0",
 }
+
+# Providers whose models are frequently gated behind a us.* cross-region profile;
+# used by the runtime fallback when a bare id is rejected.
+_PROFILE_PROVIDERS = ("anthropic.", "amazon.nova", "meta.", "deepseek.")
 
 
 def invocation_id(model_id: str) -> str:
     """Map a config model id to the id actually passed to Converse."""
     return _INFERENCE_PROFILE.get(model_id, model_id)
+
+
+def profile_fallback(model_id: str) -> str | None:
+    """If a bare id is rejected as on-demand-unsupported, the us.* profile id to retry."""
+    inv = invocation_id(model_id)
+    if not inv.startswith("us."):
+        return "us." + inv
+    return None
 
 
 def family_of(model_id: str) -> str:
@@ -222,14 +238,20 @@ def _run_cell(
     region: str,
 ) -> Generation:
     cp = C.render(cell.item, cell.condition, tok)
-    res = chat(
-        model_id=invocation_id(cell.model_id),
-        system=cp.system,
-        user=cp.user,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        region=region,
-    )
+    try:
+        res = chat(model_id=invocation_id(cell.model_id), system=cp.system, user=cp.user,
+                   max_tokens=max_tokens, temperature=temperature, region=region)
+    except Exception as e:
+        # Some models reject the bare id ("on-demand throughput isn't supported";
+        # use an inference profile). Retry once with the us.* profile id.
+        fb = profile_fallback(cell.model_id)
+        msg = str(e).lower()
+        if fb and ("inference profile" in msg or "on-demand" in msg or "not supported" in msg
+                   or "validationexception" in msg):
+            res = chat(model_id=fb, system=cp.system, user=cp.user,
+                       max_tokens=max_tokens, temperature=temperature, region=region)
+        else:
+            raise
     return Generation(
         item_id=cell.item.id,
         task=cell.item.task,
@@ -341,6 +363,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--workers", type=int, default=8, help="ThreadPoolExecutor size (default 8).")
     p.add_argument(
+        "--conditions",
+        type=str,
+        default=None,
+        help="comma-separated subset of register conditions to run (default A,B,C,D,E,F).",
+    )
+    p.add_argument(
         "--yes",
         action="store_true",
         help="skip the interactive confirm (for non-interactive / scripted runs).",
@@ -357,6 +385,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     # Default to smoke unless --full was explicitly chosen.
     smoke = not args.full
+
+    global CONDITIONS
+    if args.conditions:
+        want = [c.strip() for c in args.conditions.split(",") if c.strip()]
+        CONDITIONS = [c for c in ["A", "B", "C", "D", "E", "F"] if c in want]
 
     cfg = load_config()
     bb = cfg["black_box"]

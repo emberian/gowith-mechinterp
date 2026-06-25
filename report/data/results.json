@@ -37,20 +37,20 @@
      },
      "B": {
       "est": 0.9513888888888888,
-      "lo": 0.9097222222222222,
-      "hi": 0.9791666666666666,
+      "lo": 0.9166666666666666,
+      "hi": 0.9861111111111112,
       "n": 144
      },
      "C": {
       "est": 0.9513888888888888,
-      "lo": 0.9166666666666666,
+      "lo": 0.9097222222222222,
       "hi": 0.9861111111111112,
       "n": 144
      },
      "D": {
       "est": 0.6666666666666666,
       "lo": 0.5902777777777778,
-      "hi": 0.7430555555555556,
+      "hi": 0.75,
       "n": 144
      },
      "E": {
@@ -110,7 +110,7 @@
     "rate": {
      "A": {
       "est": 0.9305555555555556,
-      "lo": 0.8611111111111112,
+      "lo": 0.875,
       "hi": 0.9861111111111112,
       "n": 72
      },
@@ -134,7 +134,7 @@
      },
      "E": {
       "est": 0.7083333333333334,
-      "lo": 0.6111111111111112,
+      "lo": 0.5972222222222222,
       "hi": 0.8055555555555556,
       "n": 72
      },
@@ -248,8 +248,8 @@
      },
      "D": {
       "est": 0.8767361111111112,
-      "lo": 0.828125,
-      "hi": 0.9253472222222222,
+      "lo": 0.826388888888889,
+      "hi": 0.923611111111111,
       "n": 48
      },
      "E": {
@@ -277,13 +277,13 @@
      },
      "B": {
       "est": 0.325,
-      "lo": 0.2121875,
+      "lo": 0.2125,
       "hi": 0.45,
       "n": 40
      },
      "C": {
       "est": 0.5,
-      "lo": 0.35,
+      "lo": 0.3625,
       "hi": 0.6375,
       "n": 40
      },
@@ -1144,16 +1144,16 @@
    }
   ],
   "condition_norms": {
-   "A": Infinity,
-   "B": Infinity,
-   "C": Infinity,
-   "D": Infinity,
-   "E": Infinity,
-   "F": Infinity,
-   "O0": Infinity,
-   "O1": Infinity,
-   "O2": Infinity,
-   "O3": Infinity
+   "A": null,
+   "B": null,
+   "C": null,
+   "D": null,
+   "E": null,
+   "F": null,
+   "O0": null,
+   "O1": null,
+   "O2": null,
+   "O3": null
   },
   "E_validation": {
    "overlap_jaccard": 0.40350877192982454,
@@ -3091,6 +3091,361 @@
     "8.0": 1.0,
     "16.0": 0.9811320754716981
    }
+  }
+ },
+ "extras": {
+  "cross_family_13": {
+   "n_models": 13,
+   "per_model": {
+    "amazon.nova-2-lite-v1:0": {
+     "A": 0.953125,
+     "D": 0.8515625,
+     "E": 0.9348958333333334,
+     "D_minus_A": -0.1015625,
+     "reasoning": false
+    },
+    "anthropic.claude-haiku-4-5-20251001-v1:0": {
+     "A": 0.9635416666666666,
+     "D": 0.9296875,
+     "E": 0.9192708333333333,
+     "D_minus_A": -0.03385416666666663,
+     "reasoning": false
+    },
+    "deepseek.r1-v1:0": {
+     "A": 0.953125,
+     "D": 0.9609375,
+     "E": 0.953125,
+     "D_minus_A": 0.0078125,
+     "reasoning": true
+    },
+    "google.gemma-3-12b-it": {
+     "A": 0.9921875,
+     "D": 0.859375,
+     "E": 0.8828125,
+     "D_minus_A": -0.1328125,
+     "reasoning": false
+    },
+    "google.gemma-3-27b-it": {
+     "A": 0.9973958333333333,
+     "D": 0.7942708333333334,
+     "E": 0.9140625,
+     "D_minus_A": -0.2031249999999999,
+     "reasoning": false
+    },
+    "google.gemma-3-4b-it": {
+     "A": 0.9557291666666667,
+     "D": 0.7356770833333333,
+     "E": 0.8072916666666667,
+     "D_minus_A": -0.22005208333333348,
+     "reasoning": false
+    },
+    "meta.llama3-3-70b-instruct-v1:0": {
+     "A": 0.9609375,
+     "D": 0.9479166666666667,
+     "E": 0.9557291666666667,
+     "D_minus_A": -0.01302083333333326,
+     "reasoning": false
+    },
+    "mistral.magistral-small-2509": {
+     "A": 0.9505208333333334,
+     "D": 0.9322916666666667,
+     "E": 0.9583333333333333,
+     "D_minus_A": -0.01822916666666663,
+     "reasoning": true
+    },
+    "mistral.ministral-3-8b-instruct": {
+     "A": 0.9973958333333333,
+     "D": 0.8671875,
+     "E": 0.9166666666666667,
+     "D_minus_A": -0.13020833333333326,
+     "reasoning": false
+    },
+    "mistral.mistral-large-3-675b-instruct": {
+     "A": 1.0,
+     "D": 0.8567708333333333,
+     "E": 0.8567708333333333,
+     "D_minus_A": -0.14322916666666674,
+     "reasoning": false
+    },
+    "openai.gpt-oss-120b-1:0": {
+     "A": 0.953125,
+     "D": 0.71875,
+     "E": 0.7526041666666667,
+     "D_minus_A": -0.234375,
+     "reasoning": false
+    },
+    "qwen.qwen3-32b-v1:0": {
+     "A": 0.96875,
+     "D": 0.8385416666666666,
+     "E": 0.8802083333333333,
+     "D_minus_A": -0.13020833333333337,
+     "reasoning": false
+    },
+    "qwen.qwen3-next-80b-a3b": {
+     "A": 0.9375,
+     "D": 0.75,
+     "E": 0.7760416666666667,
+     "D_minus_A": -0.1875,
+     "reasoning": false
+    }
+   },
+   "mean_D_minus_A_reasoning": -0.005208333333333315,
+   "mean_D_minus_A_nonreasoning": -0.13908617424242423,
+   "interpretation": "Reasoning-trained models are immune to the Gowith tax (mean D-A ~0) while non-reasoning models pay it regardless of scale; capability-via-reasoning protects, capability-via-scale does not."
+  },
+  "alt_conditions": {
+   "conditions": {
+    "A": {
+     "label": "plain",
+     "nonmono_acc": 1.0,
+     "correlative_rubric": 0.45,
+     "keyword_rate": 0.175
+    },
+    "D": {
+     "label": "Gowith",
+     "nonmono_acc": 0.7083333333333334,
+     "correlative_rubric": 0.5875,
+     "keyword_rate": 0.275
+    },
+    "G": {
+     "label": "consider-opposite",
+     "nonmono_acc": 0.7916666666666666,
+     "correlative_rubric": 0.4875,
+     "keyword_rate": 0.125
+    },
+    "H": {
+     "label": "causal-DAG",
+     "nonmono_acc": 1.0,
+     "correlative_rubric": 0.35,
+     "keyword_rate": 0.2
+    },
+    "I": {
+     "label": "systems-persona",
+     "nonmono_acc": 0.875,
+     "correlative_rubric": 0.6625,
+     "keyword_rate": 0.325
+    },
+    "J": {
+     "label": "calibration",
+     "nonmono_acc": 0.9375,
+     "correlative_rubric": 0.2625,
+     "keyword_rate": 0.075
+    }
+   },
+   "interpretation": "A plain systems-scientist persona (I) matches/beats Gowith on the goopy task with less crisp-task tax \u2014 the one upside is the stance, reachable without the conlang. High-correlative conditions also use the most rubric keywords (partial keyword-circularity)."
+  },
+  "trajectory": {
+   "pertoken": {
+    "nonmonotonic/A": {
+     "participation_ratio": 6.139702151416011,
+     "pr_per_token": 0.03834825637837239,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 9937.01411714281,
+     "novelty_mean": 0.04925128437146717,
+     "novelty_tail": 0.031125278028858023,
+     "n_out": 162.5,
+     "n": 12
+    },
+    "nonmonotonic/B": {
+     "participation_ratio": 5.472512165733993,
+     "pr_per_token": 0.09520181401482637,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 9608.551084600487,
+     "novelty_mean": 0.07646910004251735,
+     "novelty_tail": 0.049843382857380596,
+     "n_out": 76.16666666666667,
+     "n": 12
+    },
+    "nonmonotonic/D": {
+     "participation_ratio": 3.585457679193258,
+     "pr_per_token": 0.03185303066980246,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 3643.548154860519,
+     "novelty_mean": 0.1371860018160955,
+     "novelty_tail": 0.09117893162790074,
+     "n_out": 129.83333333333334,
+     "n": 12
+    },
+    "nonmonotonic/E": {
+     "participation_ratio": 3.530442711448833,
+     "pr_per_token": 0.013564498429492733,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 7421.023484263777,
+     "novelty_mean": 0.06275632309447059,
+     "novelty_tail": 0.03687761253485241,
+     "n_out": 281.25,
+     "n": 12
+    },
+    "correlative/A": {
+     "participation_ratio": 3.5927604863724873,
+     "pr_per_token": 0.008814388017181993,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 8923.797777375275,
+     "novelty_mean": 0.04943119118111785,
+     "novelty_tail": 0.0297684723760651,
+     "n_out": 451.0833333333333,
+     "n": 12
+    },
+    "correlative/B": {
+     "participation_ratio": 3.6825703491525323,
+     "pr_per_token": 0.018818260914023995,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 8875.763813914416,
+     "novelty_mean": 0.06473398378626741,
+     "novelty_tail": 0.044051351749723265,
+     "n_out": 239.08333333333334,
+     "n": 12
+    },
+    "correlative/D": {
+     "participation_ratio": 2.9845585456772636,
+     "pr_per_token": 0.013077419015861715,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 4164.131352449631,
+     "novelty_mean": 0.0956138780884796,
+     "novelty_tail": 0.05936338751294163,
+     "n_out": 266.75,
+     "n": 12
+    },
+    "correlative/E": {
+     "participation_ratio": 2.910343364150711,
+     "pr_per_token": 0.00602031757686792,
+     "step_rel_mean": null,
+     "step_rel_cv": null,
+     "l0_mean": 6717.339871325129,
+     "novelty_mean": 0.05380912596099915,
+     "novelty_tail": 0.032033625261240505,
+     "n_out": 585.9166666666666,
+     "n": 12
+    }
+   },
+   "lyapunov": {
+    "nonmonotonic/A": {
+     "exponent": 0.01791645650500874,
+     "amp_at_K": 2.395661008418765,
+     "n": 8
+    },
+    "nonmonotonic/B": {
+     "exponent": 0.016182250548424332,
+     "amp_at_K": 2.589503769938524,
+     "n": 8
+    },
+    "nonmonotonic/D": {
+     "exponent": 0.008743101010731502,
+     "amp_at_K": 2.6164395913656673,
+     "n": 8
+    },
+    "nonmonotonic/E": {
+     "exponent": 0.016389207014591366,
+     "amp_at_K": 3.271358023242157,
+     "n": 8
+    },
+    "correlative/A": {
+     "exponent": 0.012155326230119988,
+     "amp_at_K": 2.239169848269676,
+     "n": 8
+    },
+    "correlative/B": {
+     "exponent": 0.009727521101609784,
+     "amp_at_K": 2.3714908518369895,
+     "n": 8
+    },
+    "correlative/D": {
+     "exponent": 0.009841336220987136,
+     "amp_at_K": 2.3177095511282366,
+     "n": 8
+    },
+    "correlative/E": {
+     "exponent": 0.006554831608909132,
+     "amp_at_K": 1.9248321076969142,
+     "n": 8
+    }
+   },
+   "attn_range": {
+    "nonmonotonic/A": {
+     "mean_dist": 103.15193061033885,
+     "max_layer_dist": 150.74861526489258,
+     "long_range_mass": 0.03303314717535007,
+     "n": 8
+    },
+    "nonmonotonic/D": {
+     "mean_dist": 428.61157162984216,
+     "max_layer_dist": 1581.9099426269531,
+     "long_range_mass": 0.5498524220505108,
+     "n": 8
+    },
+    "nonmonotonic/E": {
+     "mean_dist": 423.1320199171702,
+     "max_layer_dist": 1596.651870727539,
+     "long_range_mass": 0.4529937456051508,
+     "n": 8
+    },
+    "nonmonotonic/Y": {
+     "mean_dist": 144.36592213312784,
+     "max_layer_dist": 217.7765655517578,
+     "long_range_mass": 0.1982285125365403,
+     "n": 8
+    },
+    "nonmonotonic/W": {
+     "mean_dist": 98.38132977485657,
+     "max_layer_dist": 147.97247123718262,
+     "long_range_mass": 0.0,
+     "n": 8
+    },
+    "nonmonotonic/P": {
+     "mean_dist": 144.57724367578822,
+     "max_layer_dist": 214.65124320983887,
+     "long_range_mass": 0.17577872523846358,
+     "n": 8
+    },
+    "correlative/A": {
+     "mean_dist": 209.40715418259305,
+     "max_layer_dist": 307.20289611816406,
+     "long_range_mass": 0.37770668824668974,
+     "n": 8
+    },
+    "correlative/D": {
+     "mean_dist": 429.83615469932556,
+     "max_layer_dist": 1551.3967895507812,
+     "long_range_mass": 0.5144207481450092,
+     "n": 8
+    },
+    "correlative/E": {
+     "mean_dist": 448.263206799825,
+     "max_layer_dist": 1643.4411010742188,
+     "long_range_mass": 0.49234907049685717,
+     "n": 8
+    },
+    "correlative/Y": {
+     "mean_dist": 250.91758316755298,
+     "max_layer_dist": 370.3421859741211,
+     "long_range_mass": 0.4416055630038803,
+     "n": 8
+    },
+    "correlative/W": {
+     "mean_dist": 172.52821052074432,
+     "max_layer_dist": 260.8154125213623,
+     "long_range_mass": 0.30532227848501253,
+     "n": 8
+    },
+    "correlative/P": {
+     "mean_dist": 274.5251266360283,
+     "max_layer_dist": 414.88198471069336,
+     "long_range_mass": 0.44878952958000207,
+     "n": 8
+    }
+   },
+   "interpretation": "Gowith templates LOCAL token dynamics \u2014 lower effective dimensionality (participation ratio), sparser per-token features, locally contractive (Lyapunov) \u2014 and shows more long-range attention mass. BUT: the long-range effect is largely an input-length confound (padded-plain B reaches as far), and surface-rhythm controls (hyphen-rhythm Y, pig-latin P) reproduce part of the long-range push with short plain inputs and no relational grammar \u2014 while word-per-line (W) KILLS it. So the signature is a generic 'connected-rhythm templating' effect, partly reproduced by orthogonal surface manipulations, not a Gowith-specific circuit. All n=8-12; suggestive not proven."
+  },
+  "caveats": {
+   "opus_not_tested": "The model that made the original 'felt easier' claim (Claude Opus 4.8) could not be tested: no Bedrock access, no API credits. Our reasoning-immunity finding predicts it would NOT be taxed.",
+   "white_box_one_model": "Mechanistic data is from ONE model (Gemma-3-12B-it, non-reasoning). The reasoning-model mechanistic comparison (R1-Distill-Qwen-14B) is future work \u2014 the GPU box auto-terminated on its cost-guard before it ran."
   }
  }
 }

@@ -34,7 +34,8 @@ from .model import build_prompt_ids, generate, load_lm, set_determinism
 from .schema import Item, load_config, read_jsonl
 
 _REPO = Path(__file__).resolve().parents[2]
-OUT = _REPO / "data" / "runs" / "white"
+# GOWEXP_TAG routes a non-Gemma probe run to its own subdir (e.g. white/r1-14b/).
+OUT = _REPO / "data" / "runs" / "white" / os.environ.get("GOWEXP_TAG", "")
 CONDS = ["A", "B", "D", "E"]
 TASKS = ["nonmonotonic", "correlative"]
 
@@ -63,15 +64,20 @@ def main() -> None:
         by_task[it.task].append(it)
     sample = {t: by_task[t][:per_task] for t in TASKS}
 
-    lm = load_lm(wb["model_id"], dtype=wb["dtype"], revision=wb["model_revision"])
+    # Model-agnostic: GOWEXP_MODEL overrides the white-box Gemma so we can probe the
+    # trajectory dynamics of ANY open model (e.g. a reasoning model) — no SAE needed.
+    model_id = os.environ.get("GOWEXP_MODEL", wb["model_id"])
+    revision = "main" if os.environ.get("GOWEXP_MODEL") else wb["model_revision"]
+    lm = load_lm(model_id, dtype=wb["dtype"], revision=revision)
     embed = lm.model.get_input_embeddings()
+    tok = lambda s: lm.tokenizer.encode(s, add_special_tokens=False)  # noqa: E731 (B/E need it)
     rng = np.random.default_rng(cfg["seed"])
 
     rows: list[dict] = []
     for task in TASKS:
         for cond in CONDS:
             for it in tqdm(sample[task], desc=f"ly:{task}:{cond}"):
-                cp = C.render(it, cond)
+                cp = C.render(it, cond, tok)
                 input_ids = build_prompt_ids(lm, cp.system, cp.user)
                 in_len = input_ids.shape[1]
                 _txt, full = generate(lm, input_ids, max_new_tokens=max_new, do_sample=False)
