@@ -7,7 +7,6 @@ uv.lock.local
 # and is force-tracked (git add -f) — it is the GPU output, NOT regenerable for free.
 data/runs/white_smoke/
 data/runs/MOCK
-report/report.pdf
 .DS_Store
 # secrets / ephemeral infra state never enter the repo
 *.pem
