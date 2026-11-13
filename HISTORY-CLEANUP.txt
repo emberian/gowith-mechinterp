@@ -1,0 +1,13 @@
+Paper-library offload, 2026-11-13
+
+PDF paths were removed from Git history after all observed versions were SHA256-verified in ~/paperbin. Source paper/report inputs, source code, images and unrelated data were retained. See PAPERS.txt and .papers/history.json for recovery identities and source paths.
+
+Original tip: be8147179a78832eeb90813f345ffd6e675ffb36
+Pre-rewrite Git bundle: /Users/ember/repo-archives/2026-11-13/pdf-offload/gowith-mechinterp.bundle
+Bundle SHA256: 128c006f2e46512e8835c80f32c00d28338edd6d69bf54fa49fcd358647c7e53
+Independent backup: hbox:~/repo-archives/2026-11-13/pdf-offload/gowith-mechinterp.bundle
+The original archive passed restoration and git fsck. .papers/history-map.tsv.xz maps old commits to rewritten commits. Commits made empty by payload removal were retained.
+
+Saved data/runs outputs were also moved to refs/evidence/run-data-20261113, a parentless commit in this same repository, preserving original blobs. Ordinary clones omit that ref; tools/run_data.py restore fetches it and refuses to overwrite differing files. Frozen inputs, report results and site files remain in normal history.
+
+Existing local worktrees retain old history and were not modified. Preserve local work and use a fresh clone; do not merge or force-push old histories back.
