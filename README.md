@@ -1,3 +1,7 @@
+> PDFs live in the local paper library. Restore exact saved versions with `python3 tools/paperbin.py restore`; see [PAPERS.txt](PAPERS.txt).
+
+> Saved experiment runs are retained in this same Git repository under an optional evidence ref. Before reanalyzing them, run `python3 tools/run_data.py restore`. It fetches the pinned corpus and restores exact bytes without rerunning the experiment.
+
 # gowexp — does relational-process register change epistemic self-monitoring, and why?
 
 A mechanistic-interpretability experiment born from a Discord "Bridge" channel

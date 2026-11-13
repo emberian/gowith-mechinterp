@@ -1,0 +1,115 @@
+{
+  "ref": "refs/evidence/run-data-20261113",
+  "commit": "900bcf49dc6654eaef45906f1efed2e2941d6b9d",
+  "original_tip": "d4cf86bc25b143172d681f05304fbe6f32672d55",
+  "entries": [
+    {
+      "path": "data/runs/alt/generations.jsonl",
+      "oid": "7b770c7c5ef029d3a604d21bc1db8785c0475cb3",
+      "size": 1105712,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/black/generations.jsonl",
+      "oid": "9610da08cfc28f931425e05b312f72376f1af01e",
+      "size": 5470864,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/judge_cache.jsonl",
+      "oid": "ce079909d9769202fbc6eab69576190b8e0f5feb",
+      "size": 5600491,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/np_labels.json",
+      "oid": "a6bc2cb36c81550834e4c6ac8e45b9f774377e37",
+      "size": 1567,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/scored.jsonl",
+      "oid": "71634f1dd1cb2d9731ea9b2b584c62b6e5c7a86b",
+      "size": 1869730,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/attn_range.json",
+      "oid": "0e8e41d3ce63c600bcf79fbe450832201dc9b965",
+      "size": 1885,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/feature_summary.json",
+      "oid": "2d58b72a442842c1da29cb27604a3845544618bd",
+      "size": 61747,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/generations.jsonl",
+      "oid": "2a99d4387b603a693903532bc05db115bb7a695a",
+      "size": 4308253,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/lyapunov.json",
+      "oid": "9489a0e77a49a154bdf368660c8b7407bc8cbda8",
+      "size": 50770,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/pertoken.json",
+      "oid": "ddf422c407df811bf469c2af5b06a5f76e158da8",
+      "size": 38232,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/qualitative.json",
+      "oid": "9727ba6d6fa16c3e5192d9bb8169c772a3b967fa",
+      "size": 34679,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/row_index.json",
+      "oid": "281f9859aa9ee54c1d9e10e1e6886a57868c38ef",
+      "size": 275290,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/sae_means_L12.npz",
+      "oid": "5bda18de1648234c15c65097435bf89b005c1e99",
+      "size": 36642577,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/sae_means_L24.npz",
+      "oid": "c3a3d53ec893810d32b223e4e1461b924119bf42",
+      "size": 46100426,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/sae_means_L31.npz",
+      "oid": "d0141ed31210a9a46d38a6ef28a3a0bcff697d32",
+      "size": 45605819,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/sae_means_L41.npz",
+      "oid": "2d3cec53c18b5fbf6ce9dd595358c2e04e49e275",
+      "size": 34333585,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/steer.jsonl",
+      "oid": "c7040cefde5966971e2f2e62add44a6a79a0fdea",
+      "size": 1173313,
+      "mode": "100644"
+    },
+    {
+      "path": "data/runs/white/steer_summary.json",
+      "oid": "09e23abd047e06b448a3684da77134d21b641ac3",
+      "size": 2589,
+      "mode": "100644"
+    }
+  ]
+}

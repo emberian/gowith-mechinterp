@@ -1,0 +1,13 @@
+{
+  "original_tip": "d4cf86bc25b143172d681f05304fbe6f32672d55",
+  "papers": [
+    {
+      "path": "report/report.pdf",
+      "oid": "71a479df5ede13aefb662202fd4a3a0591727186",
+      "bytes": 503959,
+      "mode": "100644",
+      "sha256": "bcd726a03a585dd5a00f854c85fb35097d7c01028fb15c242f155f6995a6f72b",
+      "library_path": "repo-rescue-2026-11-13/papers/bcd726a03a585dd5--report.pdf"
+    }
+  ]
+}
